@@ -1,6 +1,7 @@
 package com.example.ui.viewmodel
 
 import android.app.Application
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.FlowRecDatabase
@@ -100,8 +101,18 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    // Theme Mode
-    private val _themeMode = MutableStateFlow(AppThemeMode.DARK)
+    // SharedPreferences for persistent app settings
+    private val prefs = application.getSharedPreferences("flowrec_settings", Context.MODE_PRIVATE)
+
+    // Theme Mode (Default is SYSTEM: follows phone's Dark / Light mode)
+    private val _themeMode = MutableStateFlow(
+        try {
+            val saved = prefs.getString("app_theme", AppThemeMode.SYSTEM.name)
+            AppThemeMode.valueOf(saved ?: AppThemeMode.SYSTEM.name)
+        } catch (e: Exception) {
+            AppThemeMode.SYSTEM
+        }
+    )
     val themeMode: StateFlow<AppThemeMode> = _themeMode.asStateFlow()
 
     // Editor state
@@ -234,6 +245,7 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
 
     fun setThemeMode(mode: AppThemeMode) {
         _themeMode.value = mode
+        prefs.edit().putString("app_theme", mode.name).apply()
     }
 
     fun setEditorTool(tool: EditorTool) {

@@ -76,7 +76,7 @@ fun CountdownScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(Color(0xFF0F0F12))
             .statusBarsPadding()
             .testTag("countdown_screen")
     ) {
@@ -90,14 +90,14 @@ fun CountdownScreen(
                 .padding(16.dp)
                 .size(48.dp)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                .background(Color(0xFF222228))
                 .align(Alignment.TopStart)
                 .testTag("btn_close_countdown")
         ) {
             Icon(
                 imageVector = Icons.Filled.Close,
                 contentDescription = "Cancel Recording",
-                tint = MaterialTheme.colorScheme.onBackground
+                tint = Color.White
             )
         }
 
@@ -114,8 +114,8 @@ fun CountdownScreen(
                 contentAlignment = Alignment.Center
             ) {
                 // Background Track Ring
-                val strokeColor = MaterialTheme.colorScheme.surfaceVariant
-                val activeColor = MaterialTheme.colorScheme.onBackground
+                val strokeColor = Color(0xFF26262E)
+                val activeColor = Color.White
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     drawCircle(
                         color = strokeColor,
@@ -144,7 +144,7 @@ fun CountdownScreen(
                             fontSize = if (count > 0) 54.sp else 36.sp,
                             fontWeight = FontWeight.Bold
                         ),
-                        color = if (count > 0) MaterialTheme.colorScheme.onBackground else AccentRed
+                        color = if (count > 0) Color.White else AccentRed
                     )
                 }
             }
@@ -157,7 +157,7 @@ fun CountdownScreen(
                     fontWeight = FontWeight.Bold,
                     fontSize = 24.sp
                 ),
-                color = MaterialTheme.colorScheme.onBackground
+                color = Color.White
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -167,7 +167,7 @@ fun CountdownScreen(
                 style = MaterialTheme.typography.bodyMedium.copy(
                     fontSize = 14.sp
                 ),
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = Color(0xFFA0A0A8)
             )
         }
     }
