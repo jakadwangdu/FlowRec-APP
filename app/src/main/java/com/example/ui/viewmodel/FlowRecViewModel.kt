@@ -62,12 +62,12 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
     val recorderEngine = RecorderEngine(application, viewModelScope)
 
     val allProjects: StateFlow<List<ProjectEntity>> = dao.getAllProjectsFlow()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
             val existing = dao.getAllProjects()
-            if (existing.isEmpty()) {
+            if (existing.isEmpty() || !existing.any { it.id.startsWith("demo_") }) {
                 FlowRecDatabase.prepopulateProjects(dao)
             }
         }
