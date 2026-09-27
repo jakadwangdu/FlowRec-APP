@@ -63,6 +63,18 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
     val allProjects: StateFlow<List<ProjectEntity>> = dao.getAllProjectsFlow()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    init {
+        viewModelScope.launch(Dispatchers.IO) {
+            val dummyNames = setOf("Code Walkthrough", "Tutorial", "Landing Page", "App UI Showcase", "Product Demo")
+            val existing = dao.getAllProjects()
+            existing.forEach { p ->
+                if (p.videoPath.isBlank() && p.name in dummyNames) {
+                    dao.deleteProject(p)
+                }
+            }
+        }
+    }
+
     // Screen navigation stack
     private val _navigationStack = MutableStateFlow(listOf(Screen.HOME))
     val currentScreen: StateFlow<Screen> = MutableStateFlow(Screen.HOME).apply {

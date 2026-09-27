@@ -1,16 +1,22 @@
 package com.example.ui.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
@@ -18,14 +24,17 @@ import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.VideoLibrary
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -39,51 +48,53 @@ fun FlowRecBottomNav(
     onTabSelected: (Screen) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface)
             .navigationBarsPadding()
+            .padding(horizontal = 24.dp, vertical = 10.dp),
+        contentAlignment = Alignment.Center
     ) {
-        HorizontalDivider(
-            thickness = 0.5.dp,
-            color = MaterialTheme.colorScheme.outlineVariant
-        )
-
-        Row(
+        // Floating Rounded Capsule Dock Container
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(60.dp)
-                .padding(horizontal = 24.dp),
-            horizontalArrangement = Arrangement.SpaceAround,
-            verticalAlignment = Alignment.CenterVertically
+                .shadow(16.dp, RoundedCornerShape(28.dp), spotColor = Color.Black.copy(alpha = 0.5f))
+                .clip(RoundedCornerShape(28.dp))
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.95f))
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), RoundedCornerShape(28.dp))
+                .padding(horizontal = 16.dp, vertical = 6.dp)
         ) {
-            BottomNavItem(
-                label = "Home",
-                selected = currentTab == Screen.HOME,
-                selectedIcon = Icons.Filled.Home,
-                unselectedIcon = Icons.Outlined.Home,
-                onClick = { onTabSelected(Screen.HOME) },
-                testTag = "nav_tab_home"
-            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(20.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                BottomNavItem(
+                    label = "Home",
+                    selected = currentTab == Screen.HOME,
+                    selectedIcon = Icons.Filled.Home,
+                    unselectedIcon = Icons.Outlined.Home,
+                    onClick = { onTabSelected(Screen.HOME) },
+                    testTag = "nav_tab_home"
+                )
 
-            BottomNavItem(
-                label = "Library",
-                selected = currentTab == Screen.LIBRARY,
-                selectedIcon = Icons.Filled.VideoLibrary,
-                unselectedIcon = Icons.Outlined.VideoLibrary,
-                onClick = { onTabSelected(Screen.LIBRARY) },
-                testTag = "nav_tab_library"
-            )
+                BottomNavItem(
+                    label = "Library",
+                    selected = currentTab == Screen.LIBRARY,
+                    selectedIcon = Icons.Filled.VideoLibrary,
+                    unselectedIcon = Icons.Outlined.VideoLibrary,
+                    onClick = { onTabSelected(Screen.LIBRARY) },
+                    testTag = "nav_tab_library"
+                )
 
-            BottomNavItem(
-                label = "Settings",
-                selected = currentTab == Screen.SETTINGS,
-                selectedIcon = Icons.Filled.Settings,
-                unselectedIcon = Icons.Outlined.Settings,
-                onClick = { onTabSelected(Screen.SETTINGS) },
-                testTag = "nav_tab_settings"
-            )
+                BottomNavItem(
+                    label = "Settings",
+                    selected = currentTab == Screen.SETTINGS,
+                    selectedIcon = Icons.Filled.Settings,
+                    unselectedIcon = Icons.Outlined.Settings,
+                    onClick = { onTabSelected(Screen.SETTINGS) },
+                    testTag = "nav_tab_settings"
+                )
+            }
         }
     }
 }
@@ -98,10 +109,23 @@ private fun BottomNavItem(
     testTag: String
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val tint = if (selected) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant
+
+    val tint by animateColorAsState(
+        targetValue = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
+        label = "tab_tint"
+    )
+
+    val pillBg by animateColorAsState(
+        targetValue = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else Color.Transparent,
+        animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
+        label = "pill_bg"
+    )
 
     Column(
         modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(pillBg)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
@@ -116,16 +140,17 @@ private fun BottomNavItem(
             imageVector = if (selected) selectedIcon else unselectedIcon,
             contentDescription = label,
             tint = tint,
-            modifier = Modifier.size(24.dp)
+            modifier = Modifier.size(22.dp)
         )
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall.copy(
                 fontSize = 11.sp,
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
             ),
             color = tint,
-            modifier = Modifier.padding(top = 4.dp)
+            modifier = Modifier.padding(top = 2.dp)
         )
     }
 }
+
