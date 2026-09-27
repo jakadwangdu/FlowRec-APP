@@ -21,7 +21,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.ContentCopy
@@ -51,8 +50,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.data.entity.ProjectEntity
 import com.example.ui.theme.AccentRed
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -80,15 +81,7 @@ fun ProjectItemCard(
         sdf.format(Date(project.createdAt))
     }
 
-    // Determine thumbnail drawable
-    val thumbResId = remember(project.thumbnailResName) {
-        val res = context.resources.getIdentifier(
-            project.thumbnailResName,
-            "drawable",
-            context.packageName
-        )
-        if (res != 0) res else android.R.drawable.ic_menu_gallery
-    }
+    val isCustomFile = project.thumbnailResName.startsWith("/") || project.thumbnailResName.startsWith("file:")
 
     Row(
         modifier = modifier
@@ -108,12 +101,30 @@ fun ProjectItemCard(
                 .clip(RoundedCornerShape(8.dp))
                 .background(MaterialTheme.colorScheme.surface)
         ) {
-            Image(
-                painter = painterResource(id = thumbResId),
-                contentDescription = project.name,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
+            if (isCustomFile && File(project.thumbnailResName).exists()) {
+                AsyncImage(
+                    model = File(project.thumbnailResName),
+                    contentDescription = project.name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                val thumbResId = remember(project.thumbnailResName) {
+                    val res = context.resources.getIdentifier(
+                        project.thumbnailResName,
+                        "drawable",
+                        context.packageName
+                    )
+                    if (res != 0) res else android.R.drawable.ic_menu_gallery
+                }
+                Image(
+                    painter = painterResource(id = thumbResId),
+                    contentDescription = project.name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+
             // Play indicator icon
             Box(
                 modifier = Modifier

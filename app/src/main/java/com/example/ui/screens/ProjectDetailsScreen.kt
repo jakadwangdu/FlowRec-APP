@@ -2,7 +2,6 @@ package com.example.ui.screens
 
 import android.content.Intent
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,7 +18,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -28,8 +26,6 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material3.Button
@@ -53,15 +49,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.entity.ProjectEntity
 import com.example.ui.components.FlowRecTopBar
+import com.example.ui.components.FlowRecVideoPlayer
 import com.example.ui.components.formatSeconds
 import com.example.ui.theme.AccentRed
 import com.example.ui.viewmodel.FlowRecViewModel
@@ -87,15 +82,6 @@ fun ProjectDetailsScreen(
     val formattedDate = remember(project.createdAt) {
         val sdf = SimpleDateFormat("d MMM yyyy", Locale.getDefault())
         sdf.format(Date(project.createdAt))
-    }
-
-    val thumbResId = remember(project.thumbnailResName) {
-        val res = context.resources.getIdentifier(
-            project.thumbnailResName,
-            "drawable",
-            context.packageName
-        )
-        if (res != 0) res else android.R.drawable.ic_menu_gallery
     }
 
     Scaffold(
@@ -183,59 +169,19 @@ fun ProjectDetailsScreen(
         ) {
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Video Player Preview
-            Box(
+            // Video Player Preview (Plays real video if recorded or falls back to thumbnail)
+            FlowRecVideoPlayer(
+                videoPath = project.videoPath,
+                thumbnailResName = project.thumbnailResName,
+                isPlaying = isPlaying,
+                onPlayToggle = { viewModel.togglePlayPause() },
+                durationText = formattedDuration,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(210.dp)
                     .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
                     .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
-                    .clickable { viewModel.togglePlayPause() }
-            ) {
-                Image(
-                    painter = painterResource(id = thumbResId),
-                    contentDescription = project.name,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-
-                // Play/Pause Overlay Icon
-                Box(
-                    modifier = Modifier
-                        .size(52.dp)
-                        .clip(CircleShape)
-                        .background(Color.Black.copy(alpha = 0.6f))
-                        .align(Alignment.Center),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                        contentDescription = if (isPlaying) "Pause" else "Play",
-                        tint = Color.White,
-                        modifier = Modifier.size(28.dp)
-                    )
-                }
-
-                // Duration chip at bottom right
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(10.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(Color.Black.copy(alpha = 0.7f))
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
-                ) {
-                    Text(
-                        text = formattedDuration,
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium
-                        ),
-                        color = Color.White
-                    )
-                }
-            }
+            )
 
             Spacer(modifier = Modifier.height(20.dp))
 
@@ -314,7 +260,7 @@ fun ProjectDetailsScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            val sizeMb = project.fileSizeBytes / (1024 * 1024)
+            val sizeMb = (project.fileSizeBytes / (1024 * 1024)).coerceAtLeast(1)
             DetailItemRow("Size", "${sizeMb} MB")
             HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
 
@@ -326,6 +272,11 @@ fun ProjectDetailsScreen(
 
             DetailItemRow("Frame Rate", "${project.fps} FPS")
             HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+
+            if (project.videoPath.isNotBlank()) {
+                DetailItemRow("File Location", project.videoPath.substringAfterLast("/"))
+                HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+            }
 
             Spacer(modifier = Modifier.height(32.dp))
         }

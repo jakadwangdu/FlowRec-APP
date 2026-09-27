@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -29,11 +28,8 @@ import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Mouse
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.RestartAlt
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -59,13 +55,16 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.data.entity.ProjectEntity
 import com.example.ui.components.FlowRecTopBar
+import com.example.ui.components.FlowRecVideoPlayer
 import com.example.ui.components.WaveformCanvas
 import com.example.ui.components.formatSeconds
 import com.example.ui.theme.AccentBlue
 import com.example.ui.viewmodel.EditorTool
 import com.example.ui.viewmodel.FlowRecViewModel
+import java.io.File
 
 @Composable
 fun EditorScreen(
@@ -84,20 +83,12 @@ fun EditorScreen(
     val isPlaying by viewModel.isPlaying.collectAsState()
     val zoomLevel by viewModel.zoomLevel.collectAsState()
     val cursorEnabled by viewModel.cursorEnabled.collectAsState()
-    val motionBlurEnabled by viewModel.motionBlurEnabled.collectAsState()
     val activeTool by viewModel.editorTool.collectAsState()
 
     val currentFormatted = formatSeconds(playheadSec)
     val totalFormatted = formatSeconds(project.durationSeconds)
 
-    val thumbResId = remember(project.thumbnailResName) {
-        val res = context.resources.getIdentifier(
-            project.thumbnailResName,
-            "drawable",
-            context.packageName
-        )
-        if (res != 0) res else android.R.drawable.ic_menu_gallery
-    }
+    val isCustomFile = project.thumbnailResName.startsWith("/") || project.thumbnailResName.startsWith("file:")
 
     Scaffold(
         topBar = {
@@ -218,31 +209,14 @@ fun EditorScreen(
                     .clip(RoundedCornerShape(14.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant)
                     .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp))
-                    .clickable { viewModel.togglePlayPause() }
             ) {
-                Image(
-                    painter = painterResource(id = thumbResId),
-                    contentDescription = "Video Editor Preview",
-                    contentScale = ContentScale.Crop,
+                FlowRecVideoPlayer(
+                    videoPath = project.videoPath,
+                    thumbnailResName = project.thumbnailResName,
+                    isPlaying = isPlaying,
+                    onPlayToggle = { viewModel.togglePlayPause() },
                     modifier = Modifier.fillMaxSize()
                 )
-
-                // Play / Pause center circle
-                Box(
-                    modifier = Modifier
-                        .size(46.dp)
-                        .clip(CircleShape)
-                        .background(Color.Black.copy(alpha = 0.55f))
-                        .align(Alignment.Center),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                        contentDescription = if (isPlaying) "Pause" else "Play",
-                        tint = Color.White,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
 
                 // Effect Badges Overlay (e.g. Smart Zoom 1.6x, Cursor On)
                 Row(
@@ -340,14 +314,33 @@ fun EditorScreen(
                 horizontalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 for (i in 0..4) {
-                    Image(
-                        painter = painterResource(id = thumbResId),
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(34.dp)
-                    )
+                    if (isCustomFile && File(project.thumbnailResName).exists()) {
+                        AsyncImage(
+                            model = File(project.thumbnailResName),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(34.dp)
+                        )
+                    } else {
+                        val thumbResId = remember(project.thumbnailResName) {
+                            val res = context.resources.getIdentifier(
+                                project.thumbnailResName,
+                                "drawable",
+                                context.packageName
+                            )
+                            if (res != 0) res else android.R.drawable.ic_menu_gallery
+                        }
+                        Image(
+                            painter = painterResource(id = thumbResId),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(34.dp)
+                        )
+                    }
                 }
             }
 

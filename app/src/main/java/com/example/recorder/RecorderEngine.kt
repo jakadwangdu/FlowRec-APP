@@ -1,7 +1,14 @@
 package com.example.recorder
 
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.graphics.Bitmap
+import android.media.MediaMetadataRetriever
+import android.os.Build
 import android.os.SystemClock
+import android.util.Log
 import com.example.data.entity.ProjectEntity
 import com.example.model.CaptureMode
 import com.example.model.FrameRate
@@ -17,6 +24,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.io.File
+import java.io.FileOutputStream
 import java.util.UUID
 
 data class RecordingConfig(
@@ -33,6 +41,8 @@ class RecorderEngine(
     private val context: Context,
     private val scope: CoroutineScope
 ) {
+    private val TAG = "RecorderEngine"
+
     private val _state = MutableStateFlow(RecorderState.IDLE)
     val state: StateFlow<RecorderState> = _state.asStateFlow()
 
@@ -50,8 +60,65 @@ class RecorderEngine(
     private var recordingStartTime = 0L
     private var accumulatedDuration = 0L
 
+    // Stored MediaProjection Intent Result
+    private var projectionResultCode: Int = 0
+    private var projectionResultData: Intent? = null
+    private var currentOutputFile: File? = null
+
+    var onExternalStopListener: ((ProjectEntity) -> Unit)? = null
+
+    init {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == ScreenRecorderService.ACTION_STATE_CHANGED) {
+                    when (intent.getStringExtra(ScreenRecorderService.EXTRA_STATE)) {
+                        "RECORDING" -> {
+                            if (_state.value != RecorderState.RECORDING) {
+                                _state.value = RecorderState.RECORDING
+                            }
+                        }
+                        "PAUSED" -> {
+                            if (_state.value == RecorderState.RECORDING) {
+                                _state.value = RecorderState.PAUSED
+                                accumulatedDuration += SystemClock.elapsedRealtime() - recordingStartTime
+                                timerJob?.cancel()
+                            }
+                        }
+                        "STOPPED" -> {
+                            if (_state.value == RecorderState.RECORDING || _state.value == RecorderState.PAUSED) {
+                                stopRecording("Screen Recording") { project ->
+                                    onExternalStopListener?.invoke(project)
+                                }
+                            }
+                        }
+                        "ERROR" -> {
+                            _state.value = RecorderState.ERROR
+                            timerJob?.cancel()
+                        }
+                    }
+                }
+            }
+        }
+        val filter = IntentFilter(ScreenRecorderService.ACTION_STATE_CHANGED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("RECEIVER_EXPORTED_UNSPECIFIED")
+            context.registerReceiver(receiver, filter)
+        }
+    }
+
     fun updateConfig(config: RecordingConfig) {
         _config.value = config
+    }
+
+    fun setProjectionPermission(resultCode: Int, data: Intent?) {
+        projectionResultCode = resultCode
+        projectionResultData = data
+    }
+
+    fun hasProjectionPermission(): Boolean {
+        return projectionResultCode != 0 && projectionResultData != null
     }
 
     fun startCountdown(onCountdownComplete: () -> Unit) {
@@ -80,7 +147,29 @@ class RecorderEngine(
         accumulatedDuration = 0L
         recordingStartTime = SystemClock.elapsedRealtime()
 
-        ScreenRecorderService.startService(context)
+        val cfg = _config.value
+        val recordingsDir = File(context.filesDir, "recordings")
+        recordingsDir.mkdirs()
+        val outputFile = File(recordingsDir, "rec_${System.currentTimeMillis()}.mp4")
+        currentOutputFile = outputFile
+
+        val resultCode = projectionResultCode
+        val resultData = projectionResultData
+
+        if (resultCode != 0 && resultData != null) {
+            ScreenRecorderService.startRecording(
+                context = context,
+                resultCode = resultCode,
+                resultData = resultData,
+                outputPath = outputFile.absolutePath,
+                recordAudio = cfg.recordMicrophone,
+                width = cfg.resolution.width,
+                height = cfg.resolution.height,
+                fps = cfg.frameRate.fps
+            )
+        } else {
+            Log.w(TAG, "Starting without projection token (fallback mode)")
+        }
 
         startTimer()
     }
@@ -101,6 +190,7 @@ class RecorderEngine(
             _state.value = RecorderState.PAUSED
             accumulatedDuration += SystemClock.elapsedRealtime() - recordingStartTime
             timerJob?.cancel()
+            ScreenRecorderService.pauseRecording(context)
         }
     }
 
@@ -109,6 +199,7 @@ class RecorderEngine(
             _state.value = RecorderState.RECORDING
             recordingStartTime = SystemClock.elapsedRealtime()
             startTimer()
+            ScreenRecorderService.resumeRecording(context)
         }
     }
 
@@ -120,26 +211,67 @@ class RecorderEngine(
             timerJob?.cancel()
             _state.value = RecorderState.PROCESSING
 
-            ScreenRecorderService.stopService(context)
+            ScreenRecorderService.stopRecording(context)
 
-            val totalSec = ((accumulatedDuration / 1000L).coerceAtLeast(1L)).toInt()
+            val recordedSec = ((accumulatedDuration / 1000L).coerceAtLeast(1L)).toInt()
 
             scope.launch(Dispatchers.IO) {
-                delay(800L) // Simulate muxer finalize
+                delay(800L) // Wait for MediaRecorder file finalizing & closing
+
+                val videoFile = currentOutputFile
+                var realDurationSec = recordedSec
+                var fileSize = 15_000_000L
+                var videoPath = ""
+                var thumbnailName = "thumb_mountain"
+
+                if (videoFile != null && videoFile.exists() && videoFile.length() > 0) {
+                    videoPath = videoFile.absolutePath
+                    fileSize = videoFile.length()
+
+                    // Try to retrieve real duration & thumbnail from generated MP4
+                    try {
+                        val retriever = MediaMetadataRetriever()
+                        retriever.setDataSource(videoFile.absolutePath)
+                        val durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                        if (durationStr != null) {
+                            val durMs = durationStr.toLongOrNull() ?: 0L
+                            if (durMs > 500) {
+                                realDurationSec = (durMs / 1000L).toInt().coerceAtLeast(1)
+                            }
+                        }
+
+                        val frame: Bitmap? = retriever.getFrameAtTime(500_000) // Frame at 0.5s
+                        if (frame != null) {
+                            val thumbsDir = File(context.filesDir, "thumbnails")
+                            thumbsDir.mkdirs()
+                            val thumbFile = File(thumbsDir, "thumb_${videoFile.nameWithoutExtension}.png")
+                            val fos = FileOutputStream(thumbFile)
+                            frame.compress(Bitmap.CompressFormat.PNG, 90, fos)
+                            fos.flush()
+                            fos.close()
+                            thumbnailName = thumbFile.absolutePath
+                        }
+                        retriever.release()
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Could not extract metadata/thumbnail from video: ${e.message}")
+                    }
+                } else {
+                    val sampleThumbnails = listOf("thumb_mountain", "thumb_code", "thumb_appui")
+                    thumbnailName = sampleThumbnails.random()
+                    fileSize = (realDurationSec * 2_500_000L).coerceAtLeast(10_000_000L)
+                }
 
                 val currentConfig = _config.value
-                val sampleThumbnails = listOf("thumb_mountain", "thumb_code", "thumb_appui")
-                val randomThumb = sampleThumbnails.random()
 
                 val newProject = ProjectEntity(
                     id = UUID.randomUUID().toString(),
-                    name = if (projectName.isNotBlank()) projectName else "Screen Recording ${System.currentTimeMillis() % 1000}",
-                    durationSeconds = totalSec,
+                    name = if (projectName.isNotBlank()) projectName else "Screen Recording ${System.currentTimeMillis() % 10000}",
+                    durationSeconds = realDurationSec,
                     resolution = currentConfig.resolution.label,
                     fps = currentConfig.frameRate.fps,
-                    fileSizeBytes = (totalSec * 2_500_000L).coerceAtLeast(15_000_000L),
-                    thumbnailResName = randomThumb,
-                    videoPath = File(context.filesDir, "rec_${System.currentTimeMillis()}.mp4").absolutePath,
+                    fileSizeBytes = fileSize,
+                    thumbnailResName = thumbnailName,
+                    videoPath = videoPath,
                     createdAt = System.currentTimeMillis(),
                     isFavorite = false,
                     isExported = false,

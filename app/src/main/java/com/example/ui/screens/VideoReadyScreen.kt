@@ -33,7 +33,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -47,11 +46,11 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.data.entity.ProjectEntity
 import com.example.ui.components.formatSeconds
-import com.example.ui.theme.AccentGreen
 import com.example.ui.viewmodel.FlowRecViewModel
-import com.example.ui.viewmodel.Screen
+import java.io.File
 
 @Composable
 fun VideoReadyScreen(
@@ -73,17 +72,10 @@ fun VideoReadyScreen(
         fileSizeBytes = 125 * 1024 * 1024L
     )
 
-    val thumbResId = remember(actualProject.thumbnailResName) {
-        val res = context.resources.getIdentifier(
-            actualProject.thumbnailResName,
-            "drawable",
-            context.packageName
-        )
-        if (res != 0) res else android.R.drawable.ic_menu_gallery
-    }
+    val isCustomFile = actualProject.thumbnailResName.startsWith("/") || actualProject.thumbnailResName.startsWith("file:")
 
     val formattedDuration = formatSeconds(actualProject.durationSeconds)
-    val sizeMb = actualProject.fileSizeBytes / (1024 * 1024)
+    val sizeMb = (actualProject.fileSizeBytes / (1024 * 1024)).coerceAtLeast(1)
 
     Column(
         modifier = modifier
@@ -144,12 +136,29 @@ fun VideoReadyScreen(
                 .background(MaterialTheme.colorScheme.surfaceVariant)
                 .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
         ) {
-            Image(
-                painter = painterResource(id = thumbResId),
-                contentDescription = "Exported Video",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
+            if (isCustomFile && File(actualProject.thumbnailResName).exists()) {
+                AsyncImage(
+                    model = File(actualProject.thumbnailResName),
+                    contentDescription = "Exported Video",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                val thumbResId = remember(actualProject.thumbnailResName) {
+                    val res = context.resources.getIdentifier(
+                        actualProject.thumbnailResName,
+                        "drawable",
+                        context.packageName
+                    )
+                    if (res != 0) res else android.R.drawable.ic_menu_gallery
+                }
+                Image(
+                    painter = painterResource(id = thumbResId),
+                    contentDescription = "Exported Video",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
 
             // Play icon
             Box(

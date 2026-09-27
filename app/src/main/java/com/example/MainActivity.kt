@@ -23,6 +23,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -82,6 +83,15 @@ fun FlowRecApp(
     val projects by viewModel.allProjects.collectAsState()
     val selectedProject by viewModel.selectedProject.collectAsState()
 
+    DisposableEffect(Unit) {
+        viewModel.recorderEngine.onExternalStopListener = { project ->
+            viewModel.onRecordingFinished(project)
+        }
+        onDispose {
+            viewModel.recorderEngine.onExternalStopListener = null
+        }
+    }
+
     // Permission launchers
     val audioPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -93,17 +103,16 @@ fun FlowRecApp(
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
-    ) { /* Notification granted or ignored */ }
+    ) { /* Notification permission result handled by system */ }
 
     val projectionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            // Permission granted for native screen capture
+        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
+            viewModel.recorderEngine.setProjectionPermission(result.resultCode, result.data)
             viewModel.navigateTo(Screen.COUNTDOWN)
         } else {
-            // Permission denied or simulated mode fallback
-            viewModel.navigateTo(Screen.COUNTDOWN)
+            Toast.makeText(activity, "Screen recording permission was not granted", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -125,10 +134,10 @@ fun FlowRecApp(
             try {
                 projectionLauncher.launch(projectionManager.createScreenCaptureIntent())
             } catch (e: Exception) {
-                viewModel.navigateTo(Screen.COUNTDOWN)
+                Toast.makeText(activity, "Could not launch screen capture: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         } else {
-            viewModel.navigateTo(Screen.COUNTDOWN)
+            Toast.makeText(activity, "MediaProjection service unavailable", Toast.LENGTH_SHORT).show()
         }
     }
 
