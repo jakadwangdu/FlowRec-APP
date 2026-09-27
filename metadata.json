@@ -1,0 +1,6 @@
+{
+  "name": "FlowRec",
+  "description": "Minimalist screen recorder and video editor with smart zoom, cursor effects, timeline editing, and instant export.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
