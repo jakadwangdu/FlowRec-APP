@@ -14,9 +14,9 @@ FlowRec Android is a modern, high-performance native screen recorder and studio 
 
 ### 📥 Download APK (Latest Release)
 
-[![Download APK](https://img.shields.io/badge/Download-APK%20(Latest)-000000?style=for-the-badge&logo=android&logoColor=white)](https://github.com/jakadwangdu/FlowRec-APP/releases/latest/download/flowrec-app-debug-build-8.apk)
+[![Download APK](https://img.shields.io/badge/Download-APK%20(Latest)-000000?style=for-the-badge&logo=android&logoColor=white)](https://github.com/jakadwangdu/FlowRec-APP/releases/latest/download/flowrec-app-debug-build-10.apk)
 
-* **Direct Download Link:** [**flowrec-app-debug-build-8.apk**](https://github.com/jakadwangdu/FlowRec-APP/releases/latest/download/flowrec-app-debug-build-8.apk)
+* **Direct Download Link:** [**flowrec-app-debug-build-10.apk**](https://github.com/jakadwangdu/FlowRec-APP/releases/latest/download/flowrec-app-debug-build-10.apk)
 * **Releases & Changelog:** [GitHub Releases Page](https://github.com/jakadwangdu/FlowRec-APP/releases/latest)
 
 ---
