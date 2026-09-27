@@ -186,6 +186,7 @@ fun FlowRecApp(
             Screen.RECORDING_HUD -> {
                 RecordingHudScreen(
                     viewModel = viewModel,
+                    onBackClick = { viewModel.navigateBack() },
                     onRecordingComplete = { /* Handled in engine callback */ }
                 )
             }

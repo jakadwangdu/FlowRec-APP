@@ -27,15 +27,20 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -44,8 +49,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.data.entity.ProjectEntity
+import com.example.model.RecorderState
 import com.example.ui.components.FlowRecBottomNav
 import com.example.ui.components.ProjectItemCard
+import com.example.ui.components.formatSeconds
 import com.example.ui.viewmodel.FlowRecViewModel
 import com.example.ui.viewmodel.Screen
 
@@ -58,6 +65,8 @@ fun HomeScreen(
     onSettingsClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val recState by viewModel.recorderEngine.state.collectAsState()
+    val durationSeconds by viewModel.recorderEngine.durationSeconds.collectAsState()
     Scaffold(
         bottomBar = {
             FlowRecBottomNav(
@@ -119,6 +128,70 @@ fun HomeScreen(
                             contentDescription = "Settings",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+                }
+            }
+
+            // Active Recording in Progress Banner
+            if (recState == RecorderState.RECORDING || recState == RecorderState.PAUSED) {
+                item {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { viewModel.navigateTo(Screen.RECORDING_HUD) }
+                            .testTag("active_recording_banner"),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFF1E1418)
+                        ),
+                        border = CardDefaults.outlinedCardBorder().copy(
+                            brush = Brush.horizontalGradient(
+                                listOf(Color(0xFFE53935), Color(0xFFFF5252))
+                            ),
+                            width = 1.dp
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(10.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFFFF5252))
+                                )
+                                Column {
+                                    Text(
+                                        text = if (recState == RecorderState.PAUSED) "Recording is Paused" else "Recording in Progress...",
+                                        style = MaterialTheme.typography.titleSmall.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp
+                                        ),
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        text = "Elapsed: ${formatSeconds(durationSeconds)} • Tap to open Live Monitor",
+                                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                        color = Color(0xFFFFCDD2)
+                                    )
+                                }
+                            }
+
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                contentDescription = "Open Monitor",
+                                tint = Color(0xFFFF5252),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
             }
