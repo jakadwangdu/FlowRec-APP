@@ -63,7 +63,10 @@ class MainActivity : ComponentActivity() {
             }
 
             FlowRecTheme(darkTheme = isDark) {
-                Surface(modifier = Modifier.fillMaxSize()) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
                     FlowRecApp(
                         activity = this@MainActivity,
                         viewModel = viewModel

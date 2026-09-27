@@ -24,6 +24,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
@@ -128,17 +130,33 @@ fun HomeScreen(
                         )
                     }
 
-                    IconButton(
-                        onClick = onSettingsClick,
-                        modifier = Modifier
-                            .size(44.dp)
-                            .testTag("home_settings_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Settings,
-                            contentDescription = "Settings",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        val isDarkTheme = MaterialTheme.colorScheme.primary == Color.White
+                        IconButton(
+                            onClick = { viewModel.toggleTheme(isDarkTheme) },
+                            modifier = Modifier
+                                .size(44.dp)
+                                .testTag("home_theme_toggle_button")
+                        ) {
+                            Icon(
+                                imageVector = if (isDarkTheme) Icons.Filled.LightMode else Icons.Filled.DarkMode,
+                                contentDescription = if (isDarkTheme) "Switch to Light Mode" else "Switch to Dark Mode",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        IconButton(
+                            onClick = onSettingsClick,
+                            modifier = Modifier
+                                .size(44.dp)
+                                .testTag("home_settings_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Settings,
+                                contentDescription = "Settings",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }

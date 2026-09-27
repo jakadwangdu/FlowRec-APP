@@ -66,12 +66,9 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
-            val dummyNames = setOf("Code Walkthrough", "Tutorial", "Landing Page", "App UI Showcase", "Product Demo")
             val existing = dao.getAllProjects()
-            existing.forEach { p ->
-                if (p.videoPath.isBlank() && p.name in dummyNames) {
-                    dao.deleteProject(p)
-                }
+            if (existing.isEmpty()) {
+                FlowRecDatabase.prepopulateProjects(dao)
             }
         }
     }
@@ -246,6 +243,11 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
     fun setThemeMode(mode: AppThemeMode) {
         _themeMode.value = mode
         prefs.edit().putString("app_theme", mode.name).apply()
+    }
+
+    fun toggleTheme(isCurrentlyDark: Boolean) {
+        val nextMode = if (isCurrentlyDark) AppThemeMode.LIGHT else AppThemeMode.DARK
+        setThemeMode(nextMode)
     }
 
     fun setEditorTool(tool: EditorTool) {
