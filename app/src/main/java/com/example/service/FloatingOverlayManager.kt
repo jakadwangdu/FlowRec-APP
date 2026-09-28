@@ -281,42 +281,56 @@ class FloatingOverlayManager(private val context: Context) {
         }
     }
 
+    private var preExpandX = 0
+
     private fun buildExpandedPill(): LinearLayout {
         return LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dpToPx(12), dpToPx(6), dpToPx(12), dpToPx(6))
+            setPadding(dpToPx(10), dpToPx(6), dpToPx(10), dpToPx(6))
             background = GradientDrawable().apply {
                 cornerRadius = dpToPx(28).toFloat()
                 setColor(Color.parseColor("#F216171C"))
-                setStroke(dpToPx(1), Color.parseColor("#44FFFFFF"))
+                setStroke(dpToPx(1.5f), Color.parseColor("#44FFFFFF"))
             }
             elevation = dpToPx(16).toFloat()
 
-            // 1. Live Timer Badge
-            val timerBadge = TextView(context).apply {
-                text = "REC ${formatSeconds(currentSeconds)}"
-                setTextColor(Color.WHITE)
-                textSize = 12f
-                setTypeface(typeface, android.graphics.Typeface.BOLD)
-                setPadding(dpToPx(8), dpToPx(4), dpToPx(8), dpToPx(4))
+            // 1. Live Timer Badge (REC 00:00)
+            val timerBadge = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dpToPx(8), dpToPx(5), dpToPx(8), dpToPx(5))
                 background = GradientDrawable().apply {
                     cornerRadius = dpToPx(14).toFloat()
                     setColor(Color.parseColor("#26FFFFFF"))
                 }
             }
-            timerTextExpanded = timerBadge
+            val timerDot = View(context).apply {
+                val sz = dpToPx(8)
+                layoutParams = LinearLayout.LayoutParams(sz, sz)
+                background = createCircleDrawable(Color.parseColor("#FF3B30"))
+            }
+            val timerBadgeText = TextView(context).apply {
+                text = "REC ${formatSeconds(currentSeconds)}"
+                setTextColor(Color.WHITE)
+                textSize = 12f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setPadding(dpToPx(4), 0, 0, 0)
+            }
+            timerTextExpanded = timerBadgeText
+            timerBadge.addView(timerDot)
+            timerBadge.addView(timerBadgeText)
             addView(timerBadge)
 
             // Space
-            addView(View(context).apply { layoutParams = LinearLayout.LayoutParams(dpToPx(8), 1) })
+            addView(View(context).apply { layoutParams = LinearLayout.LayoutParams(dpToPx(6), 1) })
 
             // 2. Pause / Resume Button
             val pauseBtn = LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
                 setPadding(dpToPx(8), dpToPx(6), dpToPx(8), dpToPx(6))
-                background = createRoundedDrawable(Color.parseColor("#22222A"), dpToPx(16))
+                background = createRoundedDrawable(Color.parseColor("#26262E"), dpToPx(16))
                 isClickable = true
                 setOnClickListener {
                     if (isPaused) {
@@ -327,7 +341,7 @@ class FloatingOverlayManager(private val context: Context) {
                 }
             }
             val pauseImg = ImageView(context).apply {
-                val sz = dpToPx(18)
+                val sz = dpToPx(16)
                 layoutParams = LinearLayout.LayoutParams(sz, sz)
                 setImageResource(android.R.drawable.ic_media_pause)
                 setColorFilter(Color.WHITE)
@@ -336,7 +350,7 @@ class FloatingOverlayManager(private val context: Context) {
             val pauseLbl = TextView(context).apply {
                 text = "Pause"
                 setTextColor(Color.WHITE)
-                textSize = 11f
+                textSize = 12f
                 setPadding(dpToPx(4), 0, 0, 0)
             }
             pauseText = pauseLbl
@@ -345,9 +359,9 @@ class FloatingOverlayManager(private val context: Context) {
             addView(pauseBtn)
 
             // Space
-            addView(View(context).apply { layoutParams = LinearLayout.LayoutParams(dpToPx(8), 1) })
+            addView(View(context).apply { layoutParams = LinearLayout.LayoutParams(dpToPx(6), 1) })
 
-            // 3. Stop Button
+            // 3. Stop Button (Vibrant Red)
             val stopBtn = LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
@@ -364,29 +378,32 @@ class FloatingOverlayManager(private val context: Context) {
                     collapseControls()
                 }
             }
-            val stopIcon = ImageView(context).apply {
-                val sz = dpToPx(14)
+            val stopSquare = View(context).apply {
+                val sz = dpToPx(11)
                 layoutParams = LinearLayout.LayoutParams(sz, sz)
-                setImageResource(android.R.drawable.ic_notification_overlay)
-                setColorFilter(Color.WHITE)
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.RECTANGLE
+                    cornerRadius = dpToPx(2.5f).toFloat()
+                    setColor(Color.WHITE)
+                }
             }
             val stopLbl = TextView(context).apply {
                 text = "Stop"
                 setTextColor(Color.WHITE)
-                textSize = 11f
+                textSize = 12f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setPadding(dpToPx(4), 0, 0, 0)
             }
-            stopBtn.addView(stopIcon)
+            stopBtn.addView(stopSquare)
             stopBtn.addView(stopLbl)
             addView(stopBtn)
 
             // Space
-            addView(View(context).apply { layoutParams = LinearLayout.LayoutParams(dpToPx(8), 1) })
+            addView(View(context).apply { layoutParams = LinearLayout.LayoutParams(dpToPx(6), 1) })
 
-            // 4. Minimize / Collapse Button
+            // 4. Minimize / Collapse Button (Close icon)
             val closeBtn = ImageView(context).apply {
-                val sz = dpToPx(24)
+                val sz = dpToPx(26)
                 layoutParams = LinearLayout.LayoutParams(sz, sz)
                 setPadding(dpToPx(4), dpToPx(4), dpToPx(4), dpToPx(4))
                 setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
@@ -397,17 +414,106 @@ class FloatingOverlayManager(private val context: Context) {
                 }
             }
             addView(closeBtn)
+
+            // Touch dragging on expanded pill
+            var pInitialX = 0
+            var pInitialY = 0
+            var pTouchX = 0f
+            var pTouchY = 0f
+            var pIsDragging = false
+
+            setOnTouchListener { _, event ->
+                val currentParams = windowParams ?: return@setOnTouchListener false
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        pInitialX = currentParams.x
+                        pInitialY = currentParams.y
+                        pTouchX = event.rawX
+                        pTouchY = event.rawY
+                        pIsDragging = false
+                        false
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        val dx = (event.rawX - pTouchX).toInt()
+                        val dy = (event.rawY - pTouchY).toInt()
+                        if (abs(dx) > 12 || abs(dy) > 12) {
+                            pIsDragging = true
+                            currentParams.x = pInitialX + dx
+                            currentParams.y = pInitialY + dy
+                            try {
+                                windowManager.updateViewLayout(rootView, currentParams)
+                            } catch (e: Exception) {
+                                // Ignore
+                            }
+                            true
+                        } else false
+                    }
+                    MotionEvent.ACTION_UP -> {
+                        if (pIsDragging) {
+                            preExpandX = currentParams.x
+                            true
+                        } else false
+                    }
+                    else -> false
+                }
+            }
+        }
+    }
+
+    private fun getScreenWidth(): Int {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            windowManager.currentWindowMetrics.bounds.width()
+        } else {
+            val metrics = DisplayMetrics()
+            @Suppress("DEPRECATION")
+            windowManager.defaultDisplay.getMetrics(metrics)
+            metrics.widthPixels
         }
     }
 
     private fun expandControls() {
         isExpanded = true
+        val currentParams = windowParams ?: return
+        preExpandX = currentParams.x
+
+        val screenWidth = getScreenWidth()
+        val pillEstimatedWidth = dpToPx(285)
+
+        // Shift window to the left so that the entire pill is within screen bounds
+        if (currentParams.x + pillEstimatedWidth > screenWidth - dpToPx(12)) {
+            currentParams.x = screenWidth - pillEstimatedWidth - dpToPx(12)
+        }
+        if (currentParams.x < dpToPx(12)) {
+            currentParams.x = dpToPx(12)
+        }
+
+        try {
+            windowManager.updateViewLayout(rootView, currentParams)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error updating window layout on expand: ${e.message}")
+        }
+
         collapsedCircle?.visibility = View.GONE
         expandedPill?.visibility = View.VISIBLE
     }
 
     private fun collapseControls() {
         isExpanded = false
+        val currentParams = windowParams ?: return
+        val screenWidth = getScreenWidth()
+
+        currentParams.x = if (preExpandX > screenWidth / 2) {
+            screenWidth - dpToPx(68)
+        } else {
+            dpToPx(12)
+        }
+
+        try {
+            windowManager.updateViewLayout(rootView, currentParams)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error updating window layout on collapse: ${e.message}")
+        }
+
         expandedPill?.visibility = View.GONE
         collapsedCircle?.visibility = View.VISIBLE
     }

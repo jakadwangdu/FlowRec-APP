@@ -191,9 +191,11 @@ class RecorderEngine(
         timerJob?.cancel()
         timerJob = scope.launch(Dispatchers.Default) {
             while (_state.value == RecorderState.RECORDING) {
-                delay(500L)
+                delay(300L)
                 val elapsed = accumulatedDuration + (SystemClock.elapsedRealtime() - recordingStartTime)
-                _durationSeconds.value = (elapsed / 1000L).toInt()
+                val sec = (elapsed / 1000L).toInt()
+                _durationSeconds.value = sec
+                com.example.service.FloatingOverlayManager.getInstance(context).updateDuration(sec)
             }
         }
     }
@@ -203,6 +205,7 @@ class RecorderEngine(
             _state.value = RecorderState.PAUSED
             accumulatedDuration += SystemClock.elapsedRealtime() - recordingStartTime
             timerJob?.cancel()
+            com.example.service.FloatingOverlayManager.getInstance(context).updatePausedState(true)
             ScreenRecorderService.pauseRecording(context)
         }
     }
@@ -211,6 +214,7 @@ class RecorderEngine(
         if (_state.value == RecorderState.PAUSED) {
             _state.value = RecorderState.RECORDING
             recordingStartTime = SystemClock.elapsedRealtime()
+            com.example.service.FloatingOverlayManager.getInstance(context).updatePausedState(false)
             startTimer()
             ScreenRecorderService.resumeRecording(context)
         }

@@ -114,17 +114,21 @@ class ScreenRecorderService : Service() {
 
     private var floatingOverlayManager: FloatingOverlayManager? = null
     private var recordingElapsedSeconds = 0
+    private var serviceStartTime = 0L
+    private var serviceAccumulatedTime = 0L
     private val timerHandler = Handler(Looper.getMainLooper())
     private val timerRunnable = object : Runnable {
         override fun run() {
             if (isRunning && !isPaused) {
-                recordingElapsedSeconds++
-                floatingOverlayManager?.updateDuration(recordingElapsedSeconds)
-                val formatted = formatSeconds(recordingElapsedSeconds)
+                val elapsedMs = serviceAccumulatedTime + (android.os.SystemClock.elapsedRealtime() - serviceStartTime)
+                val sec = (elapsedMs / 1000L).toInt()
+                recordingElapsedSeconds = sec
+                floatingOverlayManager?.updateDuration(sec)
+                val formatted = formatSeconds(sec)
                 updateNotification("Recording: $formatted", paused = false)
             }
             if (isRunning) {
-                timerHandler.postDelayed(this, 1000)
+                timerHandler.postDelayed(this, 500)
             }
         }
     }
@@ -161,12 +165,14 @@ class ScreenRecorderService : Service() {
                     if (success) {
                         isRunning = true
                         isPaused = false
+                        serviceStartTime = android.os.SystemClock.elapsedRealtime()
+                        serviceAccumulatedTime = 0L
                         recordingElapsedSeconds = 0
                         broadcastState("RECORDING")
                         floatingOverlayManager?.show()
                         floatingOverlayManager?.updateDuration(0)
                         timerHandler.removeCallbacks(timerRunnable)
-                        timerHandler.postDelayed(timerRunnable, 1000)
+                        timerHandler.postDelayed(timerRunnable, 500)
                     } else {
                         broadcastState("ERROR")
                         stopSelf()
@@ -180,6 +186,7 @@ class ScreenRecorderService : Service() {
             ACTION_PAUSE -> {
                 pauseMediaRecorder()
                 isPaused = true
+                serviceAccumulatedTime += android.os.SystemClock.elapsedRealtime() - serviceStartTime
                 updateNotification("Recording paused", paused = true)
                 broadcastState("PAUSED")
                 floatingOverlayManager?.updatePausedState(true)
@@ -187,6 +194,7 @@ class ScreenRecorderService : Service() {
             ACTION_RESUME -> {
                 resumeMediaRecorder()
                 isPaused = false
+                serviceStartTime = android.os.SystemClock.elapsedRealtime()
                 updateNotification("Recording screen...", paused = false)
                 broadcastState("RECORDING")
                 floatingOverlayManager?.updatePausedState(false)

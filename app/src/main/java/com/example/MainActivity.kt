@@ -291,7 +291,10 @@ fun FlowRecApp(
                 CountdownScreen(
                     viewModel = viewModel,
                     onCancel = { viewModel.navigateBack() },
-                    onCountdownFinished = { viewModel.navigateTo(Screen.RECORDING_HUD) }
+                    onCountdownFinished = {
+                        viewModel.navigateTo(Screen.RECORDING_HUD)
+                        activity.moveTaskToBack(true)
+                    }
                 )
             }
 
