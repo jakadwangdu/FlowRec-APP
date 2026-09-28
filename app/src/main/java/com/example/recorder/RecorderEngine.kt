@@ -8,6 +8,7 @@ import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
 import android.os.Build
 import android.os.SystemClock
+import android.provider.Settings
 import android.util.Log
 import com.example.data.entity.ProjectEntity
 import com.example.model.AudioSourceMode
@@ -184,6 +185,10 @@ class RecorderEngine(
             Log.w(TAG, "Starting without projection token (fallback mode)")
         }
 
+        if (cfg.floatingBubbleEnabled && (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(context))) {
+            com.example.service.FloatingOverlayManager.getInstance(context).show()
+        }
+
         startTimer()
     }
 
@@ -228,6 +233,7 @@ class RecorderEngine(
             timerJob?.cancel()
             _state.value = RecorderState.PROCESSING
 
+            com.example.service.FloatingOverlayManager.getInstance(context).remove()
             ScreenRecorderService.stopRecording(context)
 
             val recordedSec = ((accumulatedDuration / 1000L).coerceAtLeast(1L)).toInt()

@@ -215,6 +215,8 @@ fun EditorScreen(
                     thumbnailResName = project.thumbnailResName,
                     isPlaying = isPlaying,
                     onPlayToggle = { viewModel.togglePlayPause() },
+                    targetZoomLevel = zoomLevel,
+                    enableClickZoom = true,
                     modifier = Modifier.fillMaxSize()
                 )
 

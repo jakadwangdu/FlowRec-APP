@@ -1,5 +1,9 @@
 package com.example.ui.screens
 
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings as AndroidSettings
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -25,12 +29,15 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import com.example.service.FloatingOverlayManager
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -71,21 +78,23 @@ fun SettingsScreen(
     onBackClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    if (onBackClick != null) {
-        BackHandler { onBackClick() }
+    // Intercept hardware and system edge-swipe gesture navigation to return to previous screen/Home
+    BackHandler {
+        onBackClick?.invoke() ?: viewModel.navigateBack()
     }
 
     val context = LocalContext.current
     val currentTheme by viewModel.themeMode.collectAsState()
     var showThemeMenu by remember { mutableStateOf(false) }
     var showClearDataDialog by remember { mutableStateOf(false) }
-
+    var showOverlayPermissionDialog by remember { mutableStateOf(false) }
+    var isTestBubbleActive by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             FlowRecTopBar(
                 title = "Settings",
-                onBackClick = onBackClick
+                onBackClick = onBackClick ?: { viewModel.navigateBack() }
             )
         },
         bottomBar = {
@@ -97,16 +106,7 @@ fun SettingsScreen(
             )
         },
         containerColor = MaterialTheme.colorScheme.background,
-        modifier = modifier
-            .fillMaxSize()
-            .pointerInput(Unit) {
-                detectHorizontalDragGestures { change, dragAmount ->
-                    if (dragAmount > 60f) {
-                        change.consume()
-                        onBackClick?.invoke() ?: viewModel.switchBottomTab(Screen.HOME)
-                    }
-                }
-            }
+        modifier = modifier.fillMaxSize()
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -334,8 +334,62 @@ fun SettingsScreen(
                 label = "Floating Control Bubble",
                 sublabel = "Show floating circle widget on screen edge while recording",
                 checked = floatingBubble,
-                onCheckedChange = { viewModel.setFloatingBubbleEnabled(it) }
+                onCheckedChange = { enable ->
+                    if (enable && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !AndroidSettings.canDrawOverlays(context)) {
+                        showOverlayPermissionDialog = true
+                    } else {
+                        viewModel.setFloatingBubbleEnabled(enable)
+                    }
+                }
             )
+
+            // Test Floating Window / Bubble Live Preview Button
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                    Text(
+                        text = "Test Floating Window",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = if (isTestBubbleActive) "Tap to hide active test bubble" else "Preview floating bubble on top of other apps right now",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Button(
+                    onClick = {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !AndroidSettings.canDrawOverlays(context)) {
+                            showOverlayPermissionDialog = true
+                        } else {
+                            val manager = FloatingOverlayManager.getInstance(context)
+                            if (isTestBubbleActive) {
+                                manager.remove()
+                                isTestBubbleActive = false
+                                Toast.makeText(context, "Floating bubble removed", Toast.LENGTH_SHORT).show()
+                            } else {
+                                manager.show()
+                                manager.updateDuration(0)
+                                isTestBubbleActive = true
+                                Toast.makeText(context, "Floating bubble active! Drag or tap it to expand controls.", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    },
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isTestBubbleActive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Text(if (isTestBubbleActive) "Hide" else "Test Window")
+                }
+            }
 
             HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
 
@@ -439,6 +493,46 @@ fun SettingsScreen(
                 },
                 dismissButton = {
                     TextButton(onClick = { showClearDataDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
+        if (showOverlayPermissionDialog) {
+            AlertDialog(
+                onDismissRequest = { showOverlayPermissionDialog = false },
+                shape = RoundedCornerShape(20.dp),
+                title = {
+                    Text("Display Over Other Apps", fontWeight = FontWeight.Bold)
+                },
+                text = {
+                    Text(
+                        "To show the floating circle with timer, pause, and stop controls over Snapchat, WhatsApp, games, and your home screen, FlowRec requires overlay permission.\n\nPlease enable 'Allow display over other apps' in Settings."
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showOverlayPermissionDialog = false
+                            viewModel.setFloatingBubbleEnabled(true)
+                            try {
+                                val intent = Intent(
+                                    AndroidSettings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                    Uri.parse("package:${context.packageName}")
+                                )
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                val intent = Intent(AndroidSettings.ACTION_MANAGE_OVERLAY_PERMISSION)
+                                context.startActivity(intent)
+                            }
+                        }
+                    ) {
+                        Text("Open Settings")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showOverlayPermissionDialog = false }) {
                         Text("Cancel")
                     }
                 }

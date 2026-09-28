@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -195,6 +196,18 @@ fun FlowRecApp(
         }
     }
 
+    // Handle system back gestures (swipe from edge) across all app screens
+    BackHandler(enabled = currentScreen != Screen.HOME) {
+        viewModel.navigateBack()
+    }
+
+    val overlayPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) {
+        // Return from Settings; proceed with screen capture
+        requestScreenCaptureAndStart()
+    }
+
     if (showOverlayDialog) {
         AlertDialog(
             onDismissRequest = {
@@ -219,12 +232,11 @@ fun FlowRecApp(
                                 Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                                 Uri.parse("package:${activity.packageName}")
                             )
-                            activity.startActivity(intent)
+                            overlayPermissionLauncher.launch(intent)
                         } catch (e: Exception) {
                             val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
-                            activity.startActivity(intent)
+                            overlayPermissionLauncher.launch(intent)
                         }
-                        requestScreenCaptureAndStart()
                     }
                 ) {
                     Text("Enable")

@@ -2,6 +2,9 @@ package com.example.ui.components
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -12,6 +15,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -26,7 +30,7 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -35,11 +39,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.ui.viewmodel.Screen
 
 @Composable
@@ -52,24 +55,28 @@ fun FlowRecBottomNav(
         modifier = modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(horizontal = 24.dp, vertical = 10.dp),
+            .padding(horizontal = 28.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center
     ) {
-        // Floating Rounded Capsule Dock Container
+        // Floating Rounded Minimalist Capsule Dock (Text Removed, Smooth Animation, Ultra Fast)
         Box(
             modifier = Modifier
-                .shadow(16.dp, RoundedCornerShape(28.dp), spotColor = Color.Black.copy(alpha = 0.5f))
-                .clip(RoundedCornerShape(28.dp))
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.95f))
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), RoundedCornerShape(28.dp))
-                .padding(horizontal = 16.dp, vertical = 6.dp)
+                .shadow(18.dp, RoundedCornerShape(32.dp), spotColor = Color.Black.copy(alpha = 0.5f))
+                .clip(RoundedCornerShape(32.dp))
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.94f))
+                .border(
+                    1.dp,
+                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                    RoundedCornerShape(32.dp)
+                )
+                .padding(horizontal = 14.dp, vertical = 6.dp)
         ) {
             Row(
-                horizontalArrangement = Arrangement.spacedBy(20.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                BottomNavItem(
-                    label = "Home",
+                BottomNavIconItem(
+                    contentDescription = "Home",
                     selected = currentTab == Screen.HOME,
                     selectedIcon = Icons.Filled.Home,
                     unselectedIcon = Icons.Outlined.Home,
@@ -77,8 +84,8 @@ fun FlowRecBottomNav(
                     testTag = "nav_tab_home"
                 )
 
-                BottomNavItem(
-                    label = "Library",
+                BottomNavIconItem(
+                    contentDescription = "Library",
                     selected = currentTab == Screen.LIBRARY,
                     selectedIcon = Icons.Filled.VideoLibrary,
                     unselectedIcon = Icons.Outlined.VideoLibrary,
@@ -86,8 +93,8 @@ fun FlowRecBottomNav(
                     testTag = "nav_tab_library"
                 )
 
-                BottomNavItem(
-                    label = "Settings",
+                BottomNavIconItem(
+                    contentDescription = "Settings",
                     selected = currentTab == Screen.SETTINGS,
                     selectedIcon = Icons.Filled.Settings,
                     unselectedIcon = Icons.Outlined.Settings,
@@ -100,8 +107,8 @@ fun FlowRecBottomNav(
 }
 
 @Composable
-private fun BottomNavItem(
-    label: String,
+private fun BottomNavIconItem(
+    contentDescription: String,
     selected: Boolean,
     selectedIcon: ImageVector,
     unselectedIcon: ImageVector,
@@ -110,47 +117,78 @@ private fun BottomNavItem(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
 
-    val tint by animateColorAsState(
-        targetValue = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-        animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
-        label = "tab_tint"
+    // Spring bounce scale animation for selected icon
+    val iconScale by animateFloatAsState(
+        targetValue = if (selected) 1.22f else 1.0f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "dock_icon_scale"
     )
 
-    val pillBg by animateColorAsState(
-        targetValue = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else Color.Transparent,
-        animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
-        label = "pill_bg"
+    // Smooth color tint transition
+    val iconTint by animateColorAsState(
+        targetValue = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+        animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
+        label = "dock_icon_tint"
+    )
+
+    // Animated capsule pill background behind the active icon
+    val pillBgColor by animateColorAsState(
+        targetValue = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.14f) else Color.Transparent,
+        animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
+        label = "dock_pill_bg"
+    )
+
+    // Subtle animated indicator dot scale
+    val indicatorScale by animateFloatAsState(
+        targetValue = if (selected) 1.0f else 0.0f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "dock_indicator_scale"
     )
 
     Column(
         modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(pillBg)
+            .size(width = 54.dp, height = 44.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .background(pillBgColor)
             .clickable(
                 interactionSource = interactionSource,
-                indication = null,
+                indication = ripple(bounded = true, radius = 24.dp),
                 onClick = onClick
             )
-            .padding(horizontal = 16.dp, vertical = 6.dp)
             .testTag(testTag),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         Icon(
             imageVector = if (selected) selectedIcon else unselectedIcon,
-            contentDescription = label,
-            tint = tint,
-            modifier = Modifier.size(22.dp)
+            contentDescription = contentDescription,
+            tint = iconTint,
+            modifier = Modifier
+                .size(24.dp)
+                .graphicsLayer {
+                    scaleX = iconScale
+                    scaleY = iconScale
+                }
         )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall.copy(
-                fontSize = 11.sp,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
-            ),
-            color = tint,
-            modifier = Modifier.padding(top = 2.dp)
+
+        // Micro-indicator dot
+        Box(
+            modifier = Modifier
+                .padding(top = 3.dp)
+                .size(4.dp)
+                .graphicsLayer {
+                    scaleX = indicatorScale
+                    scaleY = indicatorScale
+                    alpha = indicatorScale
+                }
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary)
         )
     }
 }
-

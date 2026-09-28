@@ -51,8 +51,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.testTag
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -644,6 +645,99 @@ fun EffectsPanelScreen(
                                 }
                             )
                         }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Interactive Tap-to-Zoom Live Preview Canvas
+                Text(
+                    text = "Tap Anywhere to Test Zoom Effect",
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+
+                var previewZoomed by remember { mutableStateOf(false) }
+                var previewFocal by remember { mutableStateOf(androidx.compose.ui.geometry.Offset(0.5f, 0.5f)) }
+                var previewTapPos by remember { mutableStateOf<androidx.compose.ui.geometry.Offset?>(null) }
+                val animPreviewScale by androidx.compose.animation.core.animateFloatAsState(
+                    targetValue = if (previewZoomed) zoomLevel else 1f,
+                    animationSpec = when (zoomEasing) {
+                        "Spring" -> androidx.compose.animation.core.spring(dampingRatio = 0.55f, stiffness = 300f)
+                        "Linear" -> androidx.compose.animation.core.tween(zoomDurationMs, easing = androidx.compose.animation.core.LinearEasing)
+                        "Ease In" -> androidx.compose.animation.core.tween(zoomDurationMs, easing = androidx.compose.animation.core.FastOutLinearInEasing)
+                        else -> androidx.compose.animation.core.tween(zoomDurationMs, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+                    },
+                    label = "preview_zoom_scale"
+                )
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(130.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0xFF14141A))
+                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+                        .pointerInput(zoomLevel, zoomDurationMs, zoomEasing) {
+                            detectTapGestures { offset ->
+                                val w = size.width.toFloat()
+                                val h = size.height.toFloat()
+                                if (w > 0 && h > 0) {
+                                    previewFocal = androidx.compose.ui.geometry.Offset((offset.x / w).coerceIn(0.1f, 0.9f), (offset.y / h).coerceIn(0.1f, 0.9f))
+                                    previewTapPos = offset
+                                    previewZoomed = !previewZoomed
+                                }
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                scaleX = animPreviewScale
+                                scaleY = animPreviewScale
+                                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(previewFocal.x, previewFocal.y)
+                            }
+                            .padding(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Box(modifier = Modifier.size(24.dp).clip(CircleShape).background(Color(0xFFFF3B30)))
+                            Box(modifier = Modifier.size(60.dp, 16.dp).clip(RoundedCornerShape(8.dp)).background(Color.White.copy(alpha = 0.25f)))
+                            Box(modifier = Modifier.size(24.dp).clip(CircleShape).background(Color(0xFF2563EB)))
+                        }
+
+                        Column(
+                            modifier = Modifier.align(Alignment.Center),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = if (previewZoomed) "🎯 Zoomed ${String.format("%.1fx", zoomLevel)}" else "👆 Tap anywhere to test zoom",
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                color = Color.White
+                            )
+                            Text(
+                                text = if (previewZoomed) "Focused on tapped coordinate" else "Zooms into tapped coordinate",
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                color = Color.White.copy(alpha = 0.65f)
+                            )
+                        }
+                    }
+
+                    if (previewTapPos != null && previewZoomed) {
+                        Box(
+                            modifier = Modifier
+                                .graphicsLayer {
+                                    translationX = previewTapPos!!.x - 16.dp.toPx()
+                                    translationY = previewTapPos!!.y - 16.dp.toPx()
+                                }
+                                .size(32.dp)
+                                .border(2.dp, Color(0xFFFF3B30), CircleShape)
+                        )
                     }
                 }
             }

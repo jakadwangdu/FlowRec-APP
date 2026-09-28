@@ -1,9 +1,9 @@
 package com.example.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,12 +19,16 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -41,12 +45,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.entity.ProjectEntity
+import com.example.model.ProjectFilterOption
+import com.example.model.ProjectSortOption
 import com.example.ui.components.FlowRecBottomNav
 import com.example.ui.components.ProjectItemCard
 import com.example.ui.viewmodel.FlowRecViewModel
@@ -59,21 +65,47 @@ fun LibraryScreen(
     projects: List<ProjectEntity>,
     modifier: Modifier = Modifier
 ) {
+    // Back gesture returns to Home tab
+    BackHandler {
+        viewModel.switchBottomTab(Screen.HOME)
+    }
+
     val selectedTab by viewModel.libraryTab.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
-    var isSearchExpanded by remember { mutableStateOf(false) }
+    val projectSort by viewModel.projectSort.collectAsState()
+    val projectFilter by viewModel.projectFilter.collectAsState()
 
-    val filteredProjects = remember(projects, selectedTab, searchQuery) {
-        projects.filter { proj ->
+    var isSearchExpanded by remember { mutableStateOf(false) }
+    var showFilterMenu by remember { mutableStateOf(false) }
+
+    val hasActiveFilter = projectSort != ProjectSortOption.NEWEST || projectFilter != ProjectFilterOption.ALL
+
+    val filteredProjects = remember(projects, selectedTab, searchQuery, projectSort, projectFilter) {
+        val filtered = projects.filter { proj ->
             val matchesTab = when (selectedTab) {
                 LibraryTab.ALL -> true
                 LibraryTab.VIDEOS -> proj.isExported
                 LibraryTab.PROJECTS -> !proj.isExported
             }
+            val matchesFilter = when (projectFilter) {
+                ProjectFilterOption.ALL -> true
+                ProjectFilterOption.FAVORITES -> proj.isFavorite
+                ProjectFilterOption.EXPORTED -> proj.isExported
+                ProjectFilterOption.RAW -> !proj.isExported
+            }
             val matchesSearch = if (searchQuery.isBlank()) true else {
                 proj.name.contains(searchQuery, ignoreCase = true)
             }
-            matchesTab && matchesSearch
+            matchesTab && matchesFilter && matchesSearch
+        }
+
+        when (projectSort) {
+            ProjectSortOption.NEWEST -> filtered.sortedByDescending { it.createdAt }
+            ProjectSortOption.OLDEST -> filtered.sortedBy { it.createdAt }
+            ProjectSortOption.NAME_AZ -> filtered.sortedBy { it.name.lowercase() }
+            ProjectSortOption.NAME_ZA -> filtered.sortedByDescending { it.name.lowercase() }
+            ProjectSortOption.DURATION_DESC -> filtered.sortedByDescending { it.durationSeconds }
+            ProjectSortOption.DURATION_ASC -> filtered.sortedBy { it.durationSeconds }
         }
     }
 
@@ -87,19 +119,7 @@ fun LibraryScreen(
             )
         },
         containerColor = MaterialTheme.colorScheme.background,
-        modifier = modifier
-            .fillMaxSize()
-            .pointerInput(Unit) {
-                detectHorizontalDragGestures { change, dragAmount ->
-                    if (dragAmount > 60f) {
-                        change.consume()
-                        viewModel.switchBottomTab(Screen.HOME)
-                    } else if (dragAmount < -60f) {
-                        change.consume()
-                        viewModel.switchBottomTab(Screen.SETTINGS)
-                    }
-                }
-            }
+        modifier = modifier.fillMaxSize()
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier
@@ -141,17 +161,121 @@ fun LibraryScreen(
                             )
                         }
 
-                        IconButton(
-                            onClick = { /* Filter sort */ },
-                            modifier = Modifier
-                                .size(44.dp)
-                                .testTag("btn_library_filter")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Tune,
-                                contentDescription = "Filter",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        // Filter & Sort Button with Active Filter Indicator Badge
+                        Box {
+                            IconButton(
+                                onClick = { showFilterMenu = true },
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .testTag("btn_library_filter")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Tune,
+                                    contentDescription = "Filter and Sort",
+                                    tint = if (hasActiveFilter) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            if (hasActiveFilter) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(top = 8.dp, end = 8.dp)
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.primary)
+                                )
+                            }
+
+                            // Interactive Dropdown for Sort and Filter
+                            DropdownMenu(
+                                expanded = showFilterMenu,
+                                onDismissRequest = { showFilterMenu = false }
+                            ) {
+                                Text(
+                                    text = "SORT BY",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    ),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                                )
+
+                                ProjectSortOption.values().forEach { option ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = option.label,
+                                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                                        fontWeight = if (projectSort == option) FontWeight.Bold else FontWeight.Normal
+                                                    )
+                                                )
+                                                if (projectSort == option) {
+                                                    Icon(
+                                                        imageVector = Icons.Filled.Check,
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                }
+                                            }
+                                        },
+                                        onClick = {
+                                            viewModel.setProjectSort(option)
+                                            showFilterMenu = false
+                                        }
+                                    )
+                                }
+
+                                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                                Text(
+                                    text = "FILTER BY",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    ),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                                )
+
+                                ProjectFilterOption.values().forEach { filterOpt ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = filterOpt.label,
+                                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                                        fontWeight = if (projectFilter == filterOpt) FontWeight.Bold else FontWeight.Normal
+                                                    )
+                                                )
+                                                if (projectFilter == filterOpt) {
+                                                    Icon(
+                                                        imageVector = Icons.Filled.Check,
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                }
+                                            }
+                                        },
+                                        onClick = {
+                                            viewModel.setProjectFilter(filterOpt)
+                                            showFilterMenu = false
+                                        }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -168,31 +292,32 @@ fun LibraryScreen(
                         trailingIcon = {
                             if (searchQuery.isNotEmpty()) {
                                 IconButton(onClick = { viewModel.setSearchQuery("") }) {
-                                    Icon(Icons.Filled.Close, contentDescription = "Clear", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Icon(Icons.Filled.Close, contentDescription = "Clear search", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
                         },
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.onBackground,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
-                        ),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(bottom = 6.dp)
+                            .padding(bottom = 8.dp)
+                            .testTag("library_search_input"),
+                        shape = RoundedCornerShape(20.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                            unfocusedBorderColor = Color.Transparent,
+                            focusedBorderColor = MaterialTheme.colorScheme.primary
+                        ),
+                        singleLine = true
                     )
                 }
             }
 
-            // Filter Tabs: All / Videos / Projects
+            // Category Tab Filter Chips
             item {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 4.dp),
+                        .padding(bottom = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     LibraryFilterChip(
@@ -226,7 +351,7 @@ fun LibraryScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = if (searchQuery.isNotBlank()) "No recordings matching \"$searchQuery\"" else "No recordings in this category",
+                            text = if (searchQuery.isNotBlank()) "No recordings matching \"$searchQuery\"" else "No recordings found",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -273,7 +398,7 @@ private fun LibraryFilterChip(
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = label,
+            text = "$label ($count)",
             style = MaterialTheme.typography.labelMedium.copy(
                 fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
                 fontSize = 13.sp

@@ -16,6 +16,8 @@ import com.example.model.ExportQuality
 import com.example.model.FrameRate
 import com.example.model.RecordingResolution
 import com.example.model.VideoOrientation
+import com.example.model.ProjectFilterOption
+import com.example.model.ProjectSortOption
 import com.example.recorder.RecorderEngine
 import com.example.recorder.RecordingConfig
 import com.example.util.GalleryExporter
@@ -103,6 +105,20 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+
+    // Library Sorting & Filtering
+    private val _projectSort = MutableStateFlow(ProjectSortOption.NEWEST)
+    val projectSort: StateFlow<ProjectSortOption> = _projectSort.asStateFlow()
+
+    private val _projectFilter = MutableStateFlow(ProjectFilterOption.ALL)
+    val projectFilter: StateFlow<ProjectFilterOption> = _projectFilter.asStateFlow()
+
+    // Dynamic Tap/Click Zoom on Screen
+    private val _zoomFocalPoint = MutableStateFlow(Pair(0.5f, 0.5f))
+    val zoomFocalPoint: StateFlow<Pair<Float, Float>> = _zoomFocalPoint.asStateFlow()
+
+    private val _isZoomActive = MutableStateFlow(false)
+    val isZoomActive: StateFlow<Boolean> = _isZoomActive.asStateFlow()
 
     // SharedPreferences for persistent app settings
     private val prefs = application.getSharedPreferences("flowrec_settings", Context.MODE_PRIVATE)
@@ -362,6 +378,10 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
                 _bottomNavTab.value = newTop
             }
             true
+        } else if (currentStack.isNotEmpty() && currentStack.last() != Screen.HOME) {
+            _bottomNavTab.value = Screen.HOME
+            _navigationStack.value = listOf(Screen.HOME)
+            true
         } else {
             false
         }
@@ -399,6 +419,26 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
 
     fun setLibraryTab(tab: LibraryTab) {
         _libraryTab.value = tab
+    }
+
+    fun setProjectSort(sort: ProjectSortOption) {
+        _projectSort.value = sort
+    }
+
+    fun setProjectFilter(filter: ProjectFilterOption) {
+        _projectFilter.value = filter
+    }
+
+    fun setZoomFocalPoint(x: Float, y: Float) {
+        _zoomFocalPoint.value = Pair(x.coerceIn(0f, 1f), y.coerceIn(0f, 1f))
+    }
+
+    fun toggleZoomActive() {
+        _isZoomActive.value = !_isZoomActive.value
+    }
+
+    fun setZoomActive(active: Boolean) {
+        _isZoomActive.value = active
     }
 
     fun setSearchQuery(query: String) {

@@ -64,8 +64,10 @@ class FloatingOverlayManager(private val context: Context) {
 
     private val handler = Handler(Looper.getMainLooper())
 
+    fun isShowing(): Boolean = rootView != null
+
     fun show() {
-        if (!Settings.canDrawOverlays(context)) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(context)) {
             Log.w(TAG, "Cannot show overlay: SYSTEM_ALERT_WINDOW permission not granted")
             return
         }
@@ -75,7 +77,9 @@ class FloatingOverlayManager(private val context: Context) {
         }
 
         handler.post {
-            createAndAttachView()
+            if (rootView == null) {
+                createAndAttachView()
+            }
         }
     }
 
@@ -116,6 +120,7 @@ class FloatingOverlayManager(private val context: Context) {
                 rootView = null
                 collapsedCircle = null
                 expandedPill = null
+                isExpanded = false
             }
         }
     }
@@ -130,27 +135,22 @@ class FloatingOverlayManager(private val context: Context) {
                 WindowManager.LayoutParams.TYPE_PHONE
             }
 
-            val metrics = DisplayMetrics()
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                val bounds = windowManager.currentWindowMetrics.bounds
-                metrics.widthPixels = bounds.width()
-                metrics.heightPixels = bounds.height()
-            } else {
-                @Suppress("DEPRECATION")
-                windowManager.defaultDisplay.getMetrics(metrics)
-            }
+            val screenWidth = getScreenWidth()
+            val screenHeight = getScreenHeight()
 
+            // Safe, standard flags that work across all Android versions
             val params = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 layoutType,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                        WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
                 PixelFormat.TRANSLUCENT
             ).apply {
                 gravity = Gravity.TOP or Gravity.START
-                x = metrics.widthPixels - dpToPx(72)
-                y = dpToPx(240)
+                x = screenWidth - dpToPx(72)
+                y = (screenHeight * 0.35f).toInt()
             }
             windowParams = params
 
@@ -192,16 +192,16 @@ class FloatingOverlayManager(private val context: Context) {
                     MotionEvent.ACTION_MOVE -> {
                         val dx = (event.rawX - initialTouchX).toInt()
                         val dy = (event.rawY - initialTouchY).toInt()
-                        if (abs(dx) > 12 || abs(dy) > 12) {
+                        if (abs(dx) > 10 || abs(dy) > 10) {
                             isDragging = true
                         }
                         if (isDragging) {
-                            currentParams.x = initialX + dx
-                            currentParams.y = initialY + dy
+                            currentParams.x = (initialX + dx).coerceIn(dpToPx(8), getScreenWidth() - dpToPx(66))
+                            currentParams.y = (initialY + dy).coerceIn(dpToPx(40), getScreenHeight() - dpToPx(120))
                             try {
                                 windowManager.updateViewLayout(root, currentParams)
                             } catch (e: Exception) {
-                                // Ignore concurrency
+                                // Ignore
                             }
                         }
                         true
@@ -212,11 +212,11 @@ class FloatingOverlayManager(private val context: Context) {
                             expandControls()
                         } else {
                             // Snap to closest screen edge (Left or Right)
-                            val mid = metrics.widthPixels / 2
+                            val mid = getScreenWidth() / 2
                             currentParams.x = if (currentParams.x + dpToPx(28) < mid) {
                                 dpToPx(12)
                             } else {
-                                metrics.widthPixels - dpToPx(68)
+                                getScreenWidth() - dpToPx(68)
                             }
                             try {
                                 windowManager.updateViewLayout(root, currentParams)
@@ -283,10 +283,12 @@ class FloatingOverlayManager(private val context: Context) {
 
     private var preExpandX = 0
 
+    @SuppressLint("ClickableViewAccessibility")
     private fun buildExpandedPill(): LinearLayout {
         return LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
+            layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT)
             setPadding(dpToPx(10), dpToPx(6), dpToPx(10), dpToPx(6))
             background = GradientDrawable().apply {
                 cornerRadius = dpToPx(28).toFloat()
@@ -335,8 +337,10 @@ class FloatingOverlayManager(private val context: Context) {
                 setOnClickListener {
                     if (isPaused) {
                         ScreenRecorderService.resumeRecording(context)
+                        updatePausedState(false)
                     } else {
                         ScreenRecorderService.pauseRecording(context)
+                        updatePausedState(true)
                     }
                 }
             }
@@ -371,11 +375,15 @@ class FloatingOverlayManager(private val context: Context) {
                 setOnClickListener {
                     ScreenRecorderService.stopRecording(context)
                     // Launch MainActivity to show finished video
-                    val launchIntent = Intent(context, MainActivity::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    try {
+                        val launchIntent = Intent(context, MainActivity::class.java).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        }
+                        context.startActivity(launchIntent)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to launch MainActivity: ${e.message}")
                     }
-                    context.startActivity(launchIntent)
-                    collapseControls()
+                    remove()
                 }
             }
             val stopSquare = View(context).apply {
@@ -414,49 +422,6 @@ class FloatingOverlayManager(private val context: Context) {
                 }
             }
             addView(closeBtn)
-
-            // Touch dragging on expanded pill
-            var pInitialX = 0
-            var pInitialY = 0
-            var pTouchX = 0f
-            var pTouchY = 0f
-            var pIsDragging = false
-
-            setOnTouchListener { _, event ->
-                val currentParams = windowParams ?: return@setOnTouchListener false
-                when (event.action) {
-                    MotionEvent.ACTION_DOWN -> {
-                        pInitialX = currentParams.x
-                        pInitialY = currentParams.y
-                        pTouchX = event.rawX
-                        pTouchY = event.rawY
-                        pIsDragging = false
-                        false
-                    }
-                    MotionEvent.ACTION_MOVE -> {
-                        val dx = (event.rawX - pTouchX).toInt()
-                        val dy = (event.rawY - pTouchY).toInt()
-                        if (abs(dx) > 12 || abs(dy) > 12) {
-                            pIsDragging = true
-                            currentParams.x = pInitialX + dx
-                            currentParams.y = pInitialY + dy
-                            try {
-                                windowManager.updateViewLayout(rootView, currentParams)
-                            } catch (e: Exception) {
-                                // Ignore
-                            }
-                            true
-                        } else false
-                    }
-                    MotionEvent.ACTION_UP -> {
-                        if (pIsDragging) {
-                            preExpandX = currentParams.x
-                            true
-                        } else false
-                    }
-                    else -> false
-                }
-            }
         }
     }
 
@@ -468,6 +433,17 @@ class FloatingOverlayManager(private val context: Context) {
             @Suppress("DEPRECATION")
             windowManager.defaultDisplay.getMetrics(metrics)
             metrics.widthPixels
+        }
+    }
+
+    private fun getScreenHeight(): Int {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            windowManager.currentWindowMetrics.bounds.height()
+        } else {
+            val metrics = DisplayMetrics()
+            @Suppress("DEPRECATION")
+            windowManager.defaultDisplay.getMetrics(metrics)
+            metrics.heightPixels
         }
     }
 

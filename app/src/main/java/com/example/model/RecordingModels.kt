@@ -87,3 +87,19 @@ enum class RecorderState {
     ERROR
 }
 
+enum class ProjectSortOption(val label: String) {
+    NEWEST("Newest First"),
+    OLDEST("Oldest First"),
+    NAME_AZ("Name (A to Z)"),
+    NAME_ZA("Name (Z to A)"),
+    DURATION_DESC("Longest Duration"),
+    DURATION_ASC("Shortest Duration")
+}
+
+enum class ProjectFilterOption(val label: String) {
+    ALL("All Files"),
+    FAVORITES("Favorites Only"),
+    EXPORTED("Exported Videos"),
+    RAW("Raw Recordings")
+}
+

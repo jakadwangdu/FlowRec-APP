@@ -93,16 +93,7 @@ fun HomeScreen(
                 )
             },
             containerColor = MaterialTheme.colorScheme.background,
-            modifier = Modifier
-                .fillMaxSize()
-                .pointerInput(Unit) {
-                    detectHorizontalDragGestures { change, dragAmount ->
-                        if (dragAmount < -60f) {
-                            change.consume()
-                            viewModel.switchBottomTab(Screen.LIBRARY)
-                        }
-                    }
-                }
+            modifier = Modifier.fillMaxSize()
         ) { innerPadding ->
         LazyColumn(
             modifier = Modifier
