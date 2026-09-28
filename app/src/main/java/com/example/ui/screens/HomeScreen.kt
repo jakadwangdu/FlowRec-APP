@@ -3,7 +3,6 @@ package com.example.ui.screens
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -62,7 +61,6 @@ import com.example.model.AudioSourceMode
 import com.example.model.RecorderState
 import com.example.ui.components.FlowRecBottomNav
 import com.example.ui.components.ProjectItemCard
-import com.example.ui.components.QuickSettingsPanel
 import com.example.ui.components.StartRecordingDialog
 import com.example.ui.components.formatSeconds
 import com.example.ui.viewmodel.FlowRecViewModel
@@ -75,13 +73,14 @@ fun HomeScreen(
     onNewRecordingClick: () -> Unit,
     onViewAllClick: () -> Unit,
     onSettingsClick: () -> Unit,
+    onAddQuickTileClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val recState by viewModel.recorderEngine.state.collectAsState()
     val durationSeconds by viewModel.recorderEngine.durationSeconds.collectAsState()
 
-    var showQuickSettingsPanel by remember { mutableStateOf(false) }
     var showStartRecordingDialog by remember { mutableStateOf(false) }
+    var showQuickTileGuideDialog by remember { mutableStateOf(false) }
 
     Box(modifier = modifier.fillMaxSize()) {
         Scaffold(
@@ -97,11 +96,8 @@ fun HomeScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .pointerInput(Unit) {
-                    detectDragGestures { change, dragAmount ->
-                        if (dragAmount.y > 45f && kotlin.math.abs(dragAmount.y) > kotlin.math.abs(dragAmount.x)) {
-                            change.consume()
-                            showQuickSettingsPanel = true
-                        } else if (dragAmount.x < -60f && kotlin.math.abs(dragAmount.x) > kotlin.math.abs(dragAmount.y)) {
+                    detectHorizontalDragGestures { change, dragAmount ->
+                        if (dragAmount < -60f) {
                             change.consume()
                             viewModel.switchBottomTab(Screen.LIBRARY)
                         }
@@ -148,15 +144,16 @@ fun HomeScreen(
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(
-                            onClick = { showQuickSettingsPanel = true },
+                            onClick = { showQuickTileGuideDialog = true },
                             modifier = Modifier
                                 .size(44.dp)
-                                .testTag("home_quick_settings_button")
+                                .testTag("home_quick_tile_button")
                         ) {
                             Icon(
-                                imageVector = Icons.Filled.Tune,
-                                contentDescription = "Quick Settings Shade",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                painter = painterResource(id = R.drawable.ic_qs_screen_recorder),
+                                contentDescription = "Add to Phone Quick Settings",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
 
@@ -312,6 +309,78 @@ fun HomeScreen(
                             )
                         )
                     }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Phone Quick Settings Tile Promo Card (Adds tile to Phone's top panel / Pic 4)
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .clickable {
+                                onAddQuickTileClick()
+                                showQuickTileGuideDialog = true
+                            },
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        ),
+                        border = CardDefaults.outlinedCardBorder().copy(
+                            brush = Brush.horizontalGradient(
+                                listOf(Color(0xFF3B82F6), Color(0xFF60A5FA))
+                            ),
+                            width = 1.dp
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF2563EB)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        painter = painterResource(id = R.drawable.ic_qs_screen_recorder),
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Column {
+                                    Text(
+                                        text = "Add to Phone Quick Settings",
+                                        style = MaterialTheme.typography.titleSmall.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp
+                                        ),
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "1-tap record tile in your phone's notification bar",
+                                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                contentDescription = null,
+                                tint = Color(0xFF60A5FA),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
                 }
             }
 
@@ -409,25 +478,65 @@ fun HomeScreen(
             }
         )
 
-        // Pull-Down Quick Settings Panel (Pic 4 user request)
-        QuickSettingsPanel(
-            isOpen = showQuickSettingsPanel,
-            onDismiss = { showQuickSettingsPanel = false },
-            onStartRecordingFromTile = { audioMode, showTouches ->
-                showQuickSettingsPanel = false
-                viewModel.setAudioSourceMode(audioMode)
-                viewModel.setShowTouches(showTouches)
-                val micEnabled = (audioMode == AudioSourceMode.MIC_AND_SYSTEM)
-                viewModel.recorderEngine.updateConfig(
-                    viewModel.recorderEngine.config.value.copy(
-                        audioSource = audioMode,
-                        recordMicrophone = micEnabled,
-                        showTouches = showTouches
+        // Guide Dialog for adding Screen Recorder into Android / Samsung Quick Settings
+        if (showQuickTileGuideDialog) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { showQuickTileGuideDialog = false },
+                shape = RoundedCornerShape(20.dp),
+                icon = {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF2563EB)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_qs_screen_recorder),
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                },
+                title = {
+                    Text(
+                        text = "Phone Quick Settings Tile",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, fontSize = 18.sp),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
-                )
-                onNewRecordingClick()
-            },
-            viewModel = viewModel
-        )
+                },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            text = "Add 'Screen Recorder' directly into your phone's notification panel alongside Wi-Fi and Bluetooth!",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "How to add on your phone:\n1. Pull down your phone's notification bar twice\n2. Tap the ✏️ (Pencil / Edit) icon at top right\n3. Find 'Screen Recorder' and drag it into your active buttons",
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp, lineHeight = 18.sp),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showQuickTileGuideDialog = false
+                            onAddQuickTileClick()
+                        },
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Text("Add to Quick Settings")
+                    }
+                },
+                dismissButton = {
+                    androidx.compose.material3.TextButton(onClick = { showQuickTileGuideDialog = false }) {
+                        Text("Close")
+                    }
+                }
+            )
+        }
     }
 }

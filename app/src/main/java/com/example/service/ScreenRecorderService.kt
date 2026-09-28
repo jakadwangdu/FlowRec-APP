@@ -16,13 +16,16 @@ import android.media.MediaRecorder
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.util.DisplayMetrics
 import android.util.Log
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.example.MainActivity
+import com.example.ui.components.formatSeconds
 import java.io.File
 
 class ScreenRecorderService : Service() {
@@ -109,10 +112,28 @@ class ScreenRecorderService : Service() {
     private var mediaRecorder: MediaRecorder? = null
     private var currentOutputPath: String? = null
 
+    private var floatingOverlayManager: FloatingOverlayManager? = null
+    private var recordingElapsedSeconds = 0
+    private val timerHandler = Handler(Looper.getMainLooper())
+    private val timerRunnable = object : Runnable {
+        override fun run() {
+            if (isRunning && !isPaused) {
+                recordingElapsedSeconds++
+                floatingOverlayManager?.updateDuration(recordingElapsedSeconds)
+                val formatted = formatSeconds(recordingElapsedSeconds)
+                updateNotification("Recording: $formatted", paused = false)
+            }
+            if (isRunning) {
+                timerHandler.postDelayed(this, 1000)
+            }
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as? MediaProjectionManager
         createNotificationChannel()
+        floatingOverlayManager = FloatingOverlayManager.getInstance(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -140,7 +161,12 @@ class ScreenRecorderService : Service() {
                     if (success) {
                         isRunning = true
                         isPaused = false
+                        recordingElapsedSeconds = 0
                         broadcastState("RECORDING")
+                        floatingOverlayManager?.show()
+                        floatingOverlayManager?.updateDuration(0)
+                        timerHandler.removeCallbacks(timerRunnable)
+                        timerHandler.postDelayed(timerRunnable, 1000)
                     } else {
                         broadcastState("ERROR")
                         stopSelf()
@@ -156,14 +182,18 @@ class ScreenRecorderService : Service() {
                 isPaused = true
                 updateNotification("Recording paused", paused = true)
                 broadcastState("PAUSED")
+                floatingOverlayManager?.updatePausedState(true)
             }
             ACTION_RESUME -> {
                 resumeMediaRecorder()
                 isPaused = false
                 updateNotification("Recording screen...", paused = false)
                 broadcastState("RECORDING")
+                floatingOverlayManager?.updatePausedState(false)
             }
             ACTION_STOP -> {
+                timerHandler.removeCallbacks(timerRunnable)
+                floatingOverlayManager?.remove()
                 stopMediaProjectionRecording()
                 isRunning = false
                 isPaused = false
@@ -463,6 +493,8 @@ class ScreenRecorderService : Service() {
     }
 
     override fun onDestroy() {
+        timerHandler.removeCallbacks(timerRunnable)
+        floatingOverlayManager?.remove()
         stopMediaProjectionRecording()
         isRunning = false
         isPaused = false
