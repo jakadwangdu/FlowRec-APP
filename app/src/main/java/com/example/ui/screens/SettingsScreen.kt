@@ -94,7 +94,10 @@ fun SettingsScreen(
         topBar = {
             FlowRecTopBar(
                 title = "Settings",
-                onBackClick = onBackClick ?: { viewModel.navigateBack() }
+                onBackClick = onBackClick ?: {
+                    viewModel.navigateBack()
+                    Unit
+                }
             )
         },
         bottomBar = {
