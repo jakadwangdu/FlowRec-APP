@@ -83,10 +83,10 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onNewIntent(intent: Intent?) {
+    override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        if (intent?.getBooleanExtra("action_quick_record", false) == true) {
+        if (intent.getBooleanExtra("action_quick_record", false)) {
             pendingQuickRecord = true
         }
     }
