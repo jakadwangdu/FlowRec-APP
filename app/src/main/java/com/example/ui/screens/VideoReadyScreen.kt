@@ -52,6 +52,8 @@ import com.example.ui.components.formatSeconds
 import com.example.ui.viewmodel.FlowRecViewModel
 import java.io.File
 
+import com.example.util.GalleryExporter
+
 @Composable
 fun VideoReadyScreen(
     viewModel: FlowRecViewModel,
@@ -109,10 +111,10 @@ fun VideoReadyScreen(
         Spacer(modifier = Modifier.height(24.dp))
 
         Text(
-            text = "Video Ready!",
+            text = "Video Ready & Saved to Gallery!",
             style = MaterialTheme.typography.displayMedium.copy(
                 fontWeight = FontWeight.Bold,
-                fontSize = 26.sp
+                fontSize = 24.sp
             ),
             color = MaterialTheme.colorScheme.onBackground
         )
@@ -120,8 +122,8 @@ fun VideoReadyScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "Your video has been exported successfully.",
-            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
+            text = "Your recording was exported and saved to Gallery (Movies/FlowRec).",
+            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
@@ -200,9 +202,15 @@ fun VideoReadyScreen(
 
         Spacer(modifier = Modifier.height(36.dp))
 
-        // Primary Button: Open File
+        // Primary Button: Open File in Gallery
         Button(
-            onClick = onOpenFile,
+            onClick = {
+                if (actualProject.videoPath.isNotBlank()) {
+                    GalleryExporter.openVideoInGallery(context, actualProject.videoPath)
+                } else {
+                    onOpenFile()
+                }
+            },
             shape = RoundedCornerShape(24.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.primary,
@@ -213,8 +221,10 @@ fun VideoReadyScreen(
                 .height(50.dp)
                 .testTag("btn_open_exported_file")
         ) {
+            Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = "Open File",
+                text = "Play in Gallery",
                 style = MaterialTheme.typography.labelLarge.copy(
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 15.sp
@@ -231,11 +241,15 @@ fun VideoReadyScreen(
         ) {
             OutlinedButton(
                 onClick = {
-                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                        type = "text/plain"
-                        putExtra(Intent.EXTRA_TEXT, "Here is my screen recording exported with FlowRec!")
+                    if (actualProject.videoPath.isNotBlank()) {
+                        GalleryExporter.shareVideo(context, actualProject.videoPath, actualProject.name)
+                    } else {
+                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, "Here is my screen recording exported with FlowRec!")
+                        }
+                        context.startActivity(Intent.createChooser(shareIntent, "Share Exported Video"))
                     }
-                    context.startActivity(Intent.createChooser(shareIntent, "Share Exported Video"))
                 },
                 shape = RoundedCornerShape(24.dp),
                 modifier = Modifier
@@ -247,6 +261,7 @@ fun VideoReadyScreen(
                 Spacer(modifier = Modifier.width(6.dp))
                 Text("Share", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             }
+
 
             OutlinedButton(
                 onClick = onViewInLibrary,

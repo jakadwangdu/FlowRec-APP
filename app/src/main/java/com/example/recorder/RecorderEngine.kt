@@ -10,11 +10,16 @@ import android.os.Build
 import android.os.SystemClock
 import android.util.Log
 import com.example.data.entity.ProjectEntity
+import com.example.model.AudioSourceMode
 import com.example.model.CaptureMode
+
+import com.example.model.CountdownOption
 import com.example.model.FrameRate
 import com.example.model.RecorderState
 import com.example.model.RecordingResolution
+import com.example.model.VideoOrientation
 import com.example.service.ScreenRecorderService
+import com.example.util.GalleryExporter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -31,9 +36,16 @@ data class RecordingConfig(
     val mode: CaptureMode = CaptureMode.SCREEN,
     val resolution: RecordingResolution = RecordingResolution.RES_1080P,
     val frameRate: FrameRate = FrameRate.FPS_30,
+    val audioSource: AudioSourceMode = AudioSourceMode.MIC_AND_SYSTEM,
     val recordSystemAudio: Boolean = true,
-    val recordMicrophone: Boolean = false,
-    val showCursor: Boolean = true,
+    val recordMicrophone: Boolean = true,
+    val showTouches: Boolean = true,
+    val floatingBubbleEnabled: Boolean = true,
+    val autoSaveToGallery: Boolean = true,
+    val orientation: VideoOrientation = VideoOrientation.AUTO,
+    val countdownOption: CountdownOption = CountdownOption.SEC_3,
+    val shakeToStop: Boolean = false,
+    val showCursor: Boolean = false,
     val clickEffects: Boolean = true
 )
 
@@ -42,6 +54,7 @@ class RecorderEngine(
     private val scope: CoroutineScope
 ) {
     private val TAG = "RecorderEngine"
+
 
     private val _state = MutableStateFlow(RecorderState.IDLE)
     val state: StateFlow<RecorderState> = _state.asStateFlow()
@@ -262,10 +275,25 @@ class RecorderEngine(
                 }
 
                 val currentConfig = _config.value
+                val finalName = if (projectName.isNotBlank()) projectName else "Screen Recording ${System.currentTimeMillis() % 10000}"
+
+                var isExportedToGallery = false
+                if (videoFile != null && videoFile.exists() && videoFile.length() > 0) {
+                    if (currentConfig.autoSaveToGallery) {
+                        try {
+                            val galleryUri = GalleryExporter.saveVideoToGallery(context, videoFile, finalName)
+                            if (galleryUri != null) {
+                                isExportedToGallery = true
+                            }
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Auto-save to gallery failed: ${e.message}")
+                        }
+                    }
+                }
 
                 val newProject = ProjectEntity(
                     id = UUID.randomUUID().toString(),
-                    name = if (projectName.isNotBlank()) projectName else "Screen Recording ${System.currentTimeMillis() % 10000}",
+                    name = finalName,
                     durationSeconds = realDurationSec,
                     resolution = currentConfig.resolution.label,
                     fps = currentConfig.frameRate.fps,
@@ -274,7 +302,7 @@ class RecorderEngine(
                     videoPath = videoPath,
                     createdAt = System.currentTimeMillis(),
                     isFavorite = false,
-                    isExported = false,
+                    isExported = isExportedToGallery,
                     cursorEnabled = currentConfig.showCursor,
                     clickZoomEnabled = currentConfig.clickEffects
                 )
@@ -287,6 +315,7 @@ class RecorderEngine(
                 }
             }
         }
+
     }
 
     fun reset() {

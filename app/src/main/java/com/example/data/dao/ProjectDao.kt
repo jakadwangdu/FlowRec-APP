@@ -44,6 +44,10 @@ interface ProjectDao {
     @Query("UPDATE projects SET name = :newName WHERE id = :id")
     suspend fun renameProject(id: String, newName: String)
 
+    @Query("DELETE FROM projects WHERE id LIKE 'demo_%'")
+    suspend fun deleteDemoProjects()
+
     @Query("DELETE FROM projects")
     suspend fun deleteAllProjects()
 }
+

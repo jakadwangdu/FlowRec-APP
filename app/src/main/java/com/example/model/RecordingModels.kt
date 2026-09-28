@@ -57,6 +57,24 @@ enum class AppThemeMode(val label: String) {
     DARK("Dark")
 }
 
+enum class AudioSourceMode(val label: String) {
+    NONE("No Sound (Mute)"),
+    SYSTEM("Media Sounds Only"),
+    MIC_AND_SYSTEM("Media Sounds and Mic")
+}
+
+enum class VideoOrientation(val label: String) {
+    AUTO("Auto Detect"),
+    PORTRAIT("Portrait (9:16)"),
+    LANDSCAPE("Landscape (16:9)")
+}
+
+enum class CountdownOption(val label: String, val seconds: Int) {
+    OFF("Off (Instant)", 0),
+    SEC_3("3 Seconds", 3),
+    SEC_5("5 Seconds", 5)
+}
+
 enum class RecorderState {
     IDLE,
     PREPARING,
@@ -68,3 +86,4 @@ enum class RecorderState {
     COMPLETED,
     ERROR
 }
+

@@ -25,6 +25,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -50,10 +51,15 @@ import com.example.ui.viewmodel.Screen
 class MainActivity : ComponentActivity() {
 
     private val viewModel: FlowRecViewModel by viewModels()
+    private var pendingQuickRecord = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        if (intent?.getBooleanExtra("action_quick_record", false) == true) {
+            pendingQuickRecord = true
+        }
 
         setContent {
             val themeMode by viewModel.themeMode.collectAsState()
@@ -75,6 +81,20 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent?.getBooleanExtra("action_quick_record", false) == true) {
+            pendingQuickRecord = true
+        }
+    }
+
+    fun checkAndConsumeQuickRecord(): Boolean {
+        val launch = pendingQuickRecord
+        pendingQuickRecord = false
+        return launch
     }
 }
 
@@ -145,6 +165,12 @@ fun FlowRecApp(
         }
     }
 
+    LaunchedEffect(Unit) {
+        if ((activity as? MainActivity)?.checkAndConsumeQuickRecord() == true) {
+            requestScreenCaptureAndStart()
+        }
+    }
+
     AnimatedContent(
         targetState = currentScreen,
         transitionSpec = {
@@ -157,7 +183,7 @@ fun FlowRecApp(
                 HomeScreen(
                     viewModel = viewModel,
                     projects = projects,
-                    onNewRecordingClick = { viewModel.navigateTo(Screen.NEW_RECORDING) },
+                    onNewRecordingClick = { requestScreenCaptureAndStart() },
                     onViewAllClick = { viewModel.switchBottomTab(Screen.LIBRARY) },
                     onSettingsClick = { viewModel.navigateTo(Screen.SETTINGS) }
                 )
@@ -167,9 +193,10 @@ fun FlowRecApp(
                 NewRecordingScreen(
                     viewModel = viewModel,
                     onBackClick = { viewModel.navigateBack() },
-                    onNextClick = { viewModel.navigateTo(Screen.SCREEN_SELECTION) }
+                    onNextClick = { requestScreenCaptureAndStart() }
                 )
             }
+
 
             Screen.SCREEN_SELECTION -> {
                 ScreenSelectionScreen(

@@ -52,8 +52,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.AppThemeMode
+import com.example.model.AudioSourceMode
+import com.example.model.CountdownOption
 import com.example.model.FrameRate
 import com.example.model.RecordingResolution
+import com.example.model.VideoOrientation
 import com.example.ui.components.FlowRecBottomNav
 import com.example.ui.components.FlowRecTopBar
 import com.example.ui.components.SettingRowDropdown
@@ -75,19 +78,8 @@ fun SettingsScreen(
     val context = LocalContext.current
     val currentTheme by viewModel.themeMode.collectAsState()
     var showThemeMenu by remember { mutableStateOf(false) }
-
-    var defaultRes by remember { mutableStateOf(RecordingResolution.RES_1080P) }
-    var defaultFps by remember { mutableStateOf(FrameRate.FPS_30) }
-    var showCursor by remember { mutableStateOf(true) }
-    var clickEffects by remember { mutableStateOf(true) }
-    var motionBlur by remember { mutableStateOf(true) }
-    var defaultZoom by remember { mutableStateOf(1.6f) }
-    var blurAmount by remember { mutableStateOf(18) }
-
-    var showResMenu by remember { mutableStateOf(false) }
-    var showFpsMenu by remember { mutableStateOf(false) }
-    var showZoomMenu by remember { mutableStateOf(false) }
     var showClearDataDialog by remember { mutableStateOf(false) }
+
 
     Scaffold(
         topBar = {
@@ -166,7 +158,7 @@ fun SettingsScreen(
 
             // SECTION: RECORDING
             Text(
-                text = "Recording",
+                text = "Recording Quality & Format",
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp
@@ -177,9 +169,11 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(10.dp))
 
             // Default Resolution
+            val defaultRes by viewModel.defaultResolution.collectAsState()
+            var showResMenu by remember { mutableStateOf(false) }
             Box {
                 SettingRowDropdown(
-                    label = "Default Resolution",
+                    label = "Resolution",
                     value = defaultRes.label,
                     onClick = { showResMenu = true }
                 )
@@ -191,7 +185,7 @@ fun SettingsScreen(
                         DropdownMenuItem(
                             text = { Text(res.label) },
                             onClick = {
-                                defaultRes = res
+                                viewModel.setDefaultResolution(res)
                                 showResMenu = false
                             }
                         )
@@ -202,9 +196,11 @@ fun SettingsScreen(
             HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
 
             // Default FPS
+            val defaultFps by viewModel.defaultFps.collectAsState()
+            var showFpsMenu by remember { mutableStateOf(false) }
             Box {
                 SettingRowDropdown(
-                    label = "Default FPS",
+                    label = "Frame Rate",
                     value = defaultFps.label,
                     onClick = { showFpsMenu = true }
                 )
@@ -216,7 +212,7 @@ fun SettingsScreen(
                         DropdownMenuItem(
                             text = { Text(fps.label) },
                             onClick = {
-                                defaultFps = fps
+                                viewModel.setDefaultFps(fps)
                                 showFpsMenu = false
                             }
                         )
@@ -226,54 +222,25 @@ fun SettingsScreen(
 
             HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
 
-            SettingRowSwitch(
-                label = "Show Cursor",
-                sublabel = null,
-                checked = showCursor,
-                onCheckedChange = { showCursor = it }
-            )
-
-            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-
-            SettingRowSwitch(
-                label = "Click Effects",
-                sublabel = null,
-                checked = clickEffects,
-                onCheckedChange = { clickEffects = it }
-            )
-
-            Spacer(modifier = Modifier.height(18.dp))
-            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-            Spacer(modifier = Modifier.height(18.dp))
-
-            // SECTION: EFFECTS
-            Text(
-                text = "Effects",
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp
-                ),
-                color = MaterialTheme.colorScheme.onBackground
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
+            // Audio Source Mode
+            val audioSource by viewModel.audioSourceMode.collectAsState()
+            var showAudioMenu by remember { mutableStateOf(false) }
             Box {
                 SettingRowDropdown(
-                    label = "Default Zoom",
-                    value = "${defaultZoom}x",
-                    onClick = { showZoomMenu = true }
+                    label = "Audio Source",
+                    value = audioSource.label,
+                    onClick = { showAudioMenu = true }
                 )
                 DropdownMenu(
-                    expanded = showZoomMenu,
-                    onDismissRequest = { showZoomMenu = false }
+                    expanded = showAudioMenu,
+                    onDismissRequest = { showAudioMenu = false }
                 ) {
-                    listOf(1.2f, 1.4f, 1.6f, 1.8f, 2.0f, 2.5f).forEach { z ->
+                    AudioSourceMode.values().forEach { mode ->
                         DropdownMenuItem(
-                            text = { Text("${z}x") },
+                            text = { Text(mode.label) },
                             onClick = {
-                                defaultZoom = z
-                                showZoomMenu = false
+                                viewModel.setAudioSourceMode(mode)
+                                showAudioMenu = false
                             }
                         )
                     }
@@ -282,33 +249,65 @@ fun SettingsScreen(
 
             HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
 
-            SettingRowSwitch(
-                label = "Motion Blur",
-                sublabel = null,
-                checked = motionBlur,
-                onCheckedChange = { motionBlur = it }
-            )
+            // Video Orientation
+            val orientation by viewModel.videoOrientation.collectAsState()
+            var showOrientationMenu by remember { mutableStateOf(false) }
+            Box {
+                SettingRowDropdown(
+                    label = "Orientation",
+                    value = orientation.label,
+                    onClick = { showOrientationMenu = true }
+                )
+                DropdownMenu(
+                    expanded = showOrientationMenu,
+                    onDismissRequest = { showOrientationMenu = false }
+                ) {
+                    VideoOrientation.values().forEach { orient ->
+                        DropdownMenuItem(
+                            text = { Text(orient.label) },
+                            onClick = {
+                                viewModel.setVideoOrientation(orient)
+                                showOrientationMenu = false
+                            }
+                        )
+                    }
+                }
+            }
 
             HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Blur Amount", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onBackground)
-                Text("$blurAmount%", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            // Countdown Timer
+            val countdown by viewModel.countdownOption.collectAsState()
+            var showCountdownMenu by remember { mutableStateOf(false) }
+            Box {
+                SettingRowDropdown(
+                    label = "Countdown Timer",
+                    value = countdown.label,
+                    onClick = { showCountdownMenu = true }
+                )
+                DropdownMenu(
+                    expanded = showCountdownMenu,
+                    onDismissRequest = { showCountdownMenu = false }
+                ) {
+                    CountdownOption.values().forEach { opt ->
+                        DropdownMenuItem(
+                            text = { Text(opt.label) },
+                            onClick = {
+                                viewModel.setCountdownOption(opt)
+                                showCountdownMenu = false
+                            }
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(18.dp))
             HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
             Spacer(modifier = Modifier.height(18.dp))
 
-            // SECTION: STORAGE
+            // SECTION: MOBILE PHONE CONTROLS
             Text(
-                text = "Storage",
+                text = "Phone Controls & Gestures",
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp
@@ -317,6 +316,65 @@ fun SettingsScreen(
             )
 
             Spacer(modifier = Modifier.height(10.dp))
+
+            // Show Touches / Tap Indicator
+            val showTouches by viewModel.showTouches.collectAsState()
+            SettingRowSwitch(
+                label = "Show Touches & Taps",
+                sublabel = "Displays visual tap circles where finger touches screen",
+                checked = showTouches,
+                onCheckedChange = { viewModel.setShowTouches(it) }
+            )
+
+            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+
+            // Floating Bubble Controls on Side
+            val floatingBubble by viewModel.floatingBubbleEnabled.collectAsState()
+            SettingRowSwitch(
+                label = "Floating Control Bubble",
+                sublabel = "Show floating circle widget on screen edge while recording",
+                checked = floatingBubble,
+                onCheckedChange = { viewModel.setFloatingBubbleEnabled(it) }
+            )
+
+            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+
+            // Shake to Stop
+            val shakeToStop by viewModel.shakeToStop.collectAsState()
+            SettingRowSwitch(
+                label = "Shake Phone to Stop",
+                sublabel = "Shake device to immediately stop and finalize recording",
+                checked = shakeToStop,
+                onCheckedChange = { viewModel.setShakeToStop(it) }
+            )
+
+            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+
+            // Save to Gallery
+            val autoSaveToGallery by viewModel.autoSaveToGallery.collectAsState()
+            SettingRowSwitch(
+                label = "Save to Gallery Automatically",
+                sublabel = "Directly saves recordings to phone Gallery (Movies/FlowRec)",
+                checked = autoSaveToGallery,
+                onCheckedChange = { viewModel.setAutoSaveToGallery(it) }
+            )
+
+            Spacer(modifier = Modifier.height(18.dp))
+            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // SECTION: STORAGE
+            Text(
+                text = "Storage & Gallery",
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp
+                ),
+                color = MaterialTheme.colorScheme.onBackground
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
 
             Row(
                 modifier = Modifier

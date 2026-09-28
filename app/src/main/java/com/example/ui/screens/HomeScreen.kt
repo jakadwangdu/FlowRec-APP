@@ -3,6 +3,7 @@ package com.example.ui.screens
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,6 +29,7 @@ import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -40,6 +42,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,9 +58,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.data.entity.ProjectEntity
+import com.example.model.AudioSourceMode
 import com.example.model.RecorderState
 import com.example.ui.components.FlowRecBottomNav
 import com.example.ui.components.ProjectItemCard
+import com.example.ui.components.QuickSettingsPanel
+import com.example.ui.components.StartRecordingDialog
 import com.example.ui.components.formatSeconds
 import com.example.ui.viewmodel.FlowRecViewModel
 import com.example.ui.viewmodel.Screen
@@ -71,27 +79,35 @@ fun HomeScreen(
 ) {
     val recState by viewModel.recorderEngine.state.collectAsState()
     val durationSeconds by viewModel.recorderEngine.durationSeconds.collectAsState()
-    Scaffold(
-        bottomBar = {
-            FlowRecBottomNav(
-                currentTab = Screen.HOME,
-                onTabSelected = { tab ->
-                    viewModel.switchBottomTab(tab)
-                }
-            )
-        },
-        containerColor = MaterialTheme.colorScheme.background,
-        modifier = modifier
-            .fillMaxSize()
-            .pointerInput(Unit) {
-                detectHorizontalDragGestures { change, dragAmount ->
-                    if (dragAmount < -60f) {
-                        change.consume()
-                        viewModel.switchBottomTab(Screen.LIBRARY)
+
+    var showQuickSettingsPanel by remember { mutableStateOf(false) }
+    var showStartRecordingDialog by remember { mutableStateOf(false) }
+
+    Box(modifier = modifier.fillMaxSize()) {
+        Scaffold(
+            bottomBar = {
+                FlowRecBottomNav(
+                    currentTab = Screen.HOME,
+                    onTabSelected = { tab ->
+                        viewModel.switchBottomTab(tab)
+                    }
+                )
+            },
+            containerColor = MaterialTheme.colorScheme.background,
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                    detectDragGestures { change, dragAmount ->
+                        if (dragAmount.y > 45f && kotlin.math.abs(dragAmount.y) > kotlin.math.abs(dragAmount.x)) {
+                            change.consume()
+                            showQuickSettingsPanel = true
+                        } else if (dragAmount.x < -60f && kotlin.math.abs(dragAmount.x) > kotlin.math.abs(dragAmount.y)) {
+                            change.consume()
+                            viewModel.switchBottomTab(Screen.LIBRARY)
+                        }
                     }
                 }
-            }
-    ) { innerPadding ->
+        ) { innerPadding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -131,6 +147,19 @@ fun HomeScreen(
                     }
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(
+                            onClick = { showQuickSettingsPanel = true },
+                            modifier = Modifier
+                                .size(44.dp)
+                                .testTag("home_quick_settings_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Tune,
+                                contentDescription = "Quick Settings Shade",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
                         val isDarkTheme = MaterialTheme.colorScheme.primary == Color.White
                         IconButton(
                             onClick = { viewModel.toggleTheme(isDarkTheme) },
@@ -258,7 +287,7 @@ fun HomeScreen(
 
                     // Primary CTA: + New Recording
                     Button(
-                        onClick = onNewRecordingClick,
+                        onClick = { showStartRecordingDialog = true },
                         shape = RoundedCornerShape(24.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primary,
@@ -365,5 +394,40 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.height(16.dp))
             }
         }
+    }
+
+        // Start Recording Small Confirmation Dialog (Pic 1 user request)
+        StartRecordingDialog(
+            isOpen = showStartRecordingDialog,
+            onDismiss = { showStartRecordingDialog = false },
+            onConfirm = { recordMic ->
+                showStartRecordingDialog = false
+                viewModel.recorderEngine.updateConfig(
+                    viewModel.recorderEngine.config.value.copy(recordMicrophone = recordMic)
+                )
+                onNewRecordingClick()
+            }
+        )
+
+        // Pull-Down Quick Settings Panel (Pic 4 user request)
+        QuickSettingsPanel(
+            isOpen = showQuickSettingsPanel,
+            onDismiss = { showQuickSettingsPanel = false },
+            onStartRecordingFromTile = { audioMode, showTouches ->
+                showQuickSettingsPanel = false
+                viewModel.setAudioSourceMode(audioMode)
+                viewModel.setShowTouches(showTouches)
+                val micEnabled = (audioMode == AudioSourceMode.MIC_AND_SYSTEM)
+                viewModel.recorderEngine.updateConfig(
+                    viewModel.recorderEngine.config.value.copy(
+                        audioSource = audioMode,
+                        recordMicrophone = micEnabled,
+                        showTouches = showTouches
+                    )
+                )
+                onNewRecordingClick()
+            },
+            viewModel = viewModel
+        )
     }
 }

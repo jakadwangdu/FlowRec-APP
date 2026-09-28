@@ -27,9 +27,9 @@ import androidx.compose.material.icons.filled.BlurOn
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.MoreHoriz
-import androidx.compose.material.icons.filled.Mouse
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -144,11 +144,11 @@ fun EditorScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     EditorToolItem(
-                        label = "Cursor",
-                        icon = Icons.Filled.Mouse,
-                        isSelected = activeTool == EditorTool.CURSOR,
+                        label = "Touches",
+                        icon = Icons.Filled.TouchApp,
+                        isSelected = activeTool == EditorTool.TOUCH || activeTool == EditorTool.CURSOR,
                         onClick = {
-                            viewModel.setEditorTool(EditorTool.CURSOR)
+                            viewModel.setEditorTool(EditorTool.TOUCH)
                             onOpenEffects()
                         }
                     )
@@ -233,7 +233,7 @@ fun EditorScreen(
                                 .padding(horizontal = 6.dp, vertical = 3.dp)
                         ) {
                             Text(
-                                text = "Cursor ON",
+                                text = "Touches ON",
                                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                                 color = Color.White
                             )
@@ -352,7 +352,7 @@ fun EditorScreen(
                     verticalArrangement = Arrangement.SpaceAround
                 ) {
                     TrackHeaderLabel("Video")
-                    TrackHeaderLabel("Cursor")
+                    TrackHeaderLabel("Touches")
                     TrackHeaderLabel("Zoom")
                     TrackHeaderLabel("Effects")
                     TrackHeaderLabel("Audio")

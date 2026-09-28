@@ -2,17 +2,23 @@ package com.example.ui.viewmodel
 
 import android.app.Application
 import android.content.Context
+import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.FlowRecDatabase
 import com.example.data.entity.ProjectEntity
 import com.example.model.AppThemeMode
+import com.example.model.AudioSourceMode
+import com.example.model.CountdownOption
 import com.example.model.ExportFormat
 import com.example.model.ExportPreset
 import com.example.model.ExportQuality
+import com.example.model.FrameRate
 import com.example.model.RecordingResolution
+import com.example.model.VideoOrientation
 import com.example.recorder.RecorderEngine
 import com.example.recorder.RecordingConfig
+import com.example.util.GalleryExporter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -22,6 +28,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.io.File
 import java.util.UUID
 
 enum class Screen {
@@ -47,6 +54,7 @@ enum class LibraryTab {
 }
 
 enum class EditorTool {
+    TOUCH,
     CURSOR,
     ZOOM,
     BLUR,
@@ -66,12 +74,10 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
-            val existing = dao.getAllProjects()
-            if (existing.isEmpty() || !existing.any { it.id.startsWith("demo_") }) {
-                FlowRecDatabase.prepopulateProjects(dao)
-            }
+            dao.deleteDemoProjects()
         }
     }
+
 
     // Screen navigation stack
     private val _navigationStack = MutableStateFlow(listOf(Screen.HOME))
@@ -112,7 +118,139 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
     )
     val themeMode: StateFlow<AppThemeMode> = _themeMode.asStateFlow()
 
+    // Mobile Phone Screen Recording Settings
+    private val _showTouches = MutableStateFlow(prefs.getBoolean("show_touches", true))
+    val showTouches: StateFlow<Boolean> = _showTouches.asStateFlow()
+
+    private val _floatingBubbleEnabled = MutableStateFlow(prefs.getBoolean("floating_bubble", true))
+    val floatingBubbleEnabled: StateFlow<Boolean> = _floatingBubbleEnabled.asStateFlow()
+
+    private val _shakeToStop = MutableStateFlow(prefs.getBoolean("shake_to_stop", false))
+    val shakeToStop: StateFlow<Boolean> = _shakeToStop.asStateFlow()
+
+    private val _autoSaveToGallery = MutableStateFlow(prefs.getBoolean("auto_save_gallery", true))
+    val autoSaveToGallery: StateFlow<Boolean> = _autoSaveToGallery.asStateFlow()
+
+    private val _audioSourceMode = MutableStateFlow(
+        try {
+            AudioSourceMode.valueOf(prefs.getString("audio_source_mode", AudioSourceMode.MIC_AND_SYSTEM.name) ?: AudioSourceMode.MIC_AND_SYSTEM.name)
+        } catch (e: Exception) {
+            AudioSourceMode.MIC_AND_SYSTEM
+        }
+    )
+    val audioSourceMode: StateFlow<AudioSourceMode> = _audioSourceMode.asStateFlow()
+
+    private val _videoOrientation = MutableStateFlow(
+        try {
+            VideoOrientation.valueOf(prefs.getString("video_orientation", VideoOrientation.AUTO.name) ?: VideoOrientation.AUTO.name)
+        } catch (e: Exception) {
+            VideoOrientation.AUTO
+        }
+    )
+    val videoOrientation: StateFlow<VideoOrientation> = _videoOrientation.asStateFlow()
+
+    private val _countdownOption = MutableStateFlow(
+        try {
+            CountdownOption.valueOf(prefs.getString("countdown_option", CountdownOption.SEC_3.name) ?: CountdownOption.SEC_3.name)
+        } catch (e: Exception) {
+            CountdownOption.SEC_3
+        }
+    )
+    val countdownOption: StateFlow<CountdownOption> = _countdownOption.asStateFlow()
+
+    private val _defaultResolution = MutableStateFlow(
+        try {
+            RecordingResolution.valueOf(prefs.getString("default_res", RecordingResolution.RES_1080P.name) ?: RecordingResolution.RES_1080P.name)
+        } catch (e: Exception) {
+            RecordingResolution.RES_1080P
+        }
+    )
+    val defaultResolution: StateFlow<RecordingResolution> = _defaultResolution.asStateFlow()
+
+    private val _defaultFps = MutableStateFlow(
+        try {
+            FrameRate.valueOf(prefs.getString("default_fps", FrameRate.FPS_30.name) ?: FrameRate.FPS_30.name)
+        } catch (e: Exception) {
+            FrameRate.FPS_30
+        }
+    )
+    val defaultFps: StateFlow<FrameRate> = _defaultFps.asStateFlow()
+
+    fun setShowTouches(enabled: Boolean) {
+        _showTouches.value = enabled
+        prefs.edit().putBoolean("show_touches", enabled).apply()
+        syncRecorderConfig()
+    }
+
+    fun setFloatingBubbleEnabled(enabled: Boolean) {
+        _floatingBubbleEnabled.value = enabled
+        prefs.edit().putBoolean("floating_bubble", enabled).apply()
+        syncRecorderConfig()
+    }
+
+    fun setShakeToStop(enabled: Boolean) {
+        _shakeToStop.value = enabled
+        prefs.edit().putBoolean("shake_to_stop", enabled).apply()
+        syncRecorderConfig()
+    }
+
+    fun setAutoSaveToGallery(enabled: Boolean) {
+        _autoSaveToGallery.value = enabled
+        prefs.edit().putBoolean("auto_save_gallery", enabled).apply()
+        syncRecorderConfig()
+    }
+
+    fun setAudioSourceMode(mode: AudioSourceMode) {
+        _audioSourceMode.value = mode
+        prefs.edit().putString("audio_source_mode", mode.name).apply()
+        syncRecorderConfig()
+    }
+
+    fun setVideoOrientation(orientation: VideoOrientation) {
+        _videoOrientation.value = orientation
+        prefs.edit().putString("video_orientation", orientation.name).apply()
+        syncRecorderConfig()
+    }
+
+    fun setCountdownOption(option: CountdownOption) {
+        _countdownOption.value = option
+        prefs.edit().putString("countdown_option", option.name).apply()
+        syncRecorderConfig()
+    }
+
+    fun setDefaultResolution(res: RecordingResolution) {
+        _defaultResolution.value = res
+        prefs.edit().putString("default_res", res.name).apply()
+        syncRecorderConfig()
+    }
+
+    fun setDefaultFps(fps: FrameRate) {
+        _defaultFps.value = fps
+        prefs.edit().putString("default_fps", fps.name).apply()
+        syncRecorderConfig()
+    }
+
+    private fun syncRecorderConfig() {
+        val audioMode = _audioSourceMode.value
+        recorderEngine.updateConfig(
+            RecordingConfig(
+                resolution = _defaultResolution.value,
+                frameRate = _defaultFps.value,
+                audioSource = audioMode,
+                recordSystemAudio = audioMode != AudioSourceMode.NONE,
+                recordMicrophone = audioMode == AudioSourceMode.MIC_AND_SYSTEM,
+                showTouches = _showTouches.value,
+                floatingBubbleEnabled = _floatingBubbleEnabled.value,
+                autoSaveToGallery = _autoSaveToGallery.value,
+                orientation = _videoOrientation.value,
+                countdownOption = _countdownOption.value,
+                shakeToStop = _shakeToStop.value
+            )
+        )
+    }
+
     // Editor state
+
     private val _editorTool = MutableStateFlow(EditorTool.CURSOR)
     val editorTool: StateFlow<EditorTool> = _editorTool.asStateFlow()
 
@@ -134,6 +272,33 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
 
     private val _cursorSize = MutableStateFlow(120)
     val cursorSize: StateFlow<Int> = _cursorSize.asStateFlow()
+
+    // Phone Touch Feedback & Mobile Effects state
+    private val _touchFeedbackStyle = MutableStateFlow("RIPPLE") // RIPPLE, GLOW, TARGET, POINTER
+    val touchFeedbackStyle: StateFlow<String> = _touchFeedbackStyle.asStateFlow()
+
+    private val _touchFeedbackColor = MutableStateFlow("#FF4444") // Red, Cyan, Yellow, White
+    val touchFeedbackColor: StateFlow<String> = _touchFeedbackColor.asStateFlow()
+
+    // Mobile Facecam Overlay
+    private val _facecamEnabled = MutableStateFlow(false)
+    val facecamEnabled: StateFlow<Boolean> = _facecamEnabled.asStateFlow()
+
+    private val _facecamShape = MutableStateFlow("CIRCLE") // CIRCLE, RECT
+    val facecamShape: StateFlow<String> = _facecamShape.asStateFlow()
+
+    private val _facecamSize = MutableStateFlow("MEDIUM") // SMALL, MEDIUM, LARGE
+    val facecamSize: StateFlow<String> = _facecamSize.asStateFlow()
+
+    // Screen Brush & Annotation
+    private val _brushEnabled = MutableStateFlow(false)
+    val brushEnabled: StateFlow<Boolean> = _brushEnabled.asStateFlow()
+
+    private val _brushColor = MutableStateFlow("#00E5FF")
+    val brushColor: StateFlow<String> = _brushColor.asStateFlow()
+
+    private val _brushThickness = MutableStateFlow(6)
+    val brushThickness: StateFlow<Int> = _brushThickness.asStateFlow()
 
     private val _clickZoomEnabled = MutableStateFlow(true)
     val clickZoomEnabled: StateFlow<Boolean> = _clickZoomEnabled.asStateFlow()
@@ -309,6 +474,40 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
         saveCurrentProjectEffects()
     }
 
+    fun setTouchFeedbackStyle(style: String) {
+        _touchFeedbackStyle.value = style
+        _cursorStyle.value = style
+        saveCurrentProjectEffects()
+    }
+
+    fun setTouchFeedbackColor(color: String) {
+        _touchFeedbackColor.value = color
+    }
+
+    fun setFacecamEnabled(enabled: Boolean) {
+        _facecamEnabled.value = enabled
+    }
+
+    fun setFacecamShape(shape: String) {
+        _facecamShape.value = shape
+    }
+
+    fun setFacecamSize(size: String) {
+        _facecamSize.value = size
+    }
+
+    fun setBrushEnabled(enabled: Boolean) {
+        _brushEnabled.value = enabled
+    }
+
+    fun setBrushColor(color: String) {
+        _brushColor.value = color
+    }
+
+    fun setBrushThickness(thickness: Int) {
+        _brushThickness.value = thickness
+    }
+
     fun setClickZoomEnabled(enabled: Boolean) {
         _clickZoomEnabled.value = enabled
         saveCurrentProjectEffects()
@@ -375,23 +574,93 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
         _isExporting.value = true
         _exportProgress.value = 0f
         exportJob?.cancel()
-        exportJob = viewModelScope.launch(Dispatchers.Default) {
-            for (i in 1..100) {
-                delay(30L)
+        exportJob = viewModelScope.launch(Dispatchers.IO) {
+            for (i in 1..65) {
+                delay(20L)
                 _exportProgress.value = i / 100f
             }
+
+            val proj = _selectedProject.value
+            var savedGalleryPath: String? = null
+
+            if (proj != null) {
+                var sourceFile: File? = if (proj.videoPath.isNotBlank() && !proj.videoPath.startsWith("content:")) {
+                    File(proj.videoPath)
+                } else null
+
+                if (sourceFile == null || !sourceFile.exists()) {
+                    val recordingsDir = File(getApplication<Application>().filesDir, "recordings")
+                    val candidates = recordingsDir.listFiles { f -> f.extension == "mp4" }
+                    sourceFile = candidates?.maxByOrNull { it.lastModified() }
+                }
+
+                if (sourceFile != null && sourceFile.exists()) {
+                    val uri = GalleryExporter.saveVideoToGallery(getApplication(), sourceFile, proj.name)
+                    if (uri != null) {
+                        savedGalleryPath = uri.toString()
+                    }
+                }
+            }
+
+            for (i in 66..100) {
+                delay(15L)
+                _exportProgress.value = i / 100f
+            }
+
             _isExporting.value = false
-            _selectedProject.value?.let { proj ->
-                val updated = proj.copy(isExported = true)
+            if (proj != null) {
+                val updated = proj.copy(
+                    isExported = true,
+                    videoPath = savedGalleryPath ?: proj.videoPath
+                )
                 _selectedProject.value = updated
                 dao.updateProject(updated)
             }
+
             viewModelScope.launch(Dispatchers.Main) {
+                Toast.makeText(
+                    getApplication(),
+                    "Video exported & saved to Gallery (Movies/FlowRec)",
+                    Toast.LENGTH_LONG
+                ).show()
                 onCompleted()
                 navigateTo(Screen.VIDEO_READY)
             }
         }
     }
+
+    fun saveProjectToGallery(project: ProjectEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            var sourceFile: File? = if (project.videoPath.isNotBlank() && !project.videoPath.startsWith("content:")) {
+                File(project.videoPath)
+            } else null
+
+            if (sourceFile == null || !sourceFile.exists()) {
+                val recordingsDir = File(getApplication<Application>().filesDir, "recordings")
+                val candidates = recordingsDir.listFiles { f -> f.extension == "mp4" }
+                sourceFile = candidates?.maxByOrNull { it.lastModified() }
+            }
+
+            if (sourceFile != null && sourceFile.exists()) {
+                val uri = GalleryExporter.saveVideoToGallery(getApplication(), sourceFile, project.name)
+                if (uri != null) {
+                    val updated = project.copy(isExported = true, videoPath = uri.toString())
+                    dao.updateProject(updated)
+                    if (_selectedProject.value?.id == project.id) {
+                        _selectedProject.value = updated
+                    }
+                    viewModelScope.launch(Dispatchers.Main) {
+                        Toast.makeText(getApplication(), "Saved to Gallery (Movies/FlowRec)", Toast.LENGTH_SHORT).show()
+                    }
+                    return@launch
+                }
+            }
+            viewModelScope.launch(Dispatchers.Main) {
+                Toast.makeText(getApplication(), "Could not locate recorded video file", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
 
     // Project Actions
     fun toggleFavorite(project: ProjectEntity) {

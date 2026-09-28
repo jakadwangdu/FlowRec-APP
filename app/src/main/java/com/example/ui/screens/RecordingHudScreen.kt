@@ -336,32 +336,108 @@ fun RecordingHudScreen(
                 }
             }
 
-            // --- 4. BOTTOM FLOATING DOCK (Exact UI from Screenshot) ---
+            // --- 4. SIDE FLOATING RECORDING BUBBLE (Options on Side, Expands on Circle Click) ---
+            var isSideBubbleExpanded by remember { mutableStateOf(false) }
+            var isDockOnRight by remember { mutableStateOf(true) }
+            var sideBubbleOffsetY by remember { mutableStateOf(0f) }
+
             Box(
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
-                    .padding(bottom = 32.dp, start = 24.dp, end = 24.dp)
+                    .fillMaxSize()
+                    .padding(vertical = 80.dp),
+                contentAlignment = if (isDockOnRight) Alignment.CenterEnd else Alignment.CenterStart
             ) {
-                AnimatedVisibility(
-                    visible = !isHudMinimized,
-                    enter = fadeIn() + slideInVertically(initialOffsetY = { it / 2 }),
-                    exit = fadeOut() + slideOutVertically(targetOffsetY = { it / 2 })
-                ) {
-                    // Floating Rounded Dark Capsule Dock
+                if (!isSideBubbleExpanded) {
+                    // --- COLLAPSED STATE: SLEEK FLOATING CIRCLE ON SCREEN EDGE ---
                     Box(
                         modifier = Modifier
-                            .shadow(24.dp, RoundedCornerShape(32.dp), spotColor = Color.Black)
-                            .clip(RoundedCornerShape(32.dp))
+                            .padding(horizontal = 8.dp)
+                            .shadow(16.dp, CircleShape, spotColor = Color.Black)
+                            .size(56.dp)
+                            .clip(CircleShape)
                             .background(Color(0xFF141418).copy(alpha = 0.95f))
-                            .border(1.dp, Color(0xFF2E2E38), RoundedCornerShape(32.dp))
-                            .padding(horizontal = 28.dp, vertical = 14.dp)
-                            .testTag("floating_bottom_dock")
+                            .border(1.5.dp, Color(0xFF383844), CircleShape)
+                            .clickable { isSideBubbleExpanded = true }
+                            .testTag("side_recording_circle_bubble"),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        // Pulsing outer red halo when recording
+                        if (recorderState == RecorderState.RECORDING) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .border(2.dp, AccentRed.copy(alpha = pulseAlpha), CircleShape)
+                            )
+                        }
+
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(10.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (recorderState == RecorderState.RECORDING) AccentRed.copy(alpha = pulseAlpha)
+                                        else Color(0xFFFFB300)
+                                    )
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = formattedDuration,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold
+                                ),
+                                color = Color.White
+                            )
+                        }
+                    }
+                } else {
+                    // --- EXPANDED STATE: SIDE CAPSULE SHOWING TIMER & FULL OPTIONS ---
+                    Box(
+                        modifier = Modifier
+                            .padding(horizontal = 12.dp)
+                            .shadow(24.dp, RoundedCornerShape(28.dp), spotColor = Color.Black)
+                            .clip(RoundedCornerShape(28.dp))
+                            .background(Color(0xFF141418).copy(alpha = 0.96f))
+                            .border(1.dp, Color(0xFF2E2E38), RoundedCornerShape(28.dp))
+                            .padding(horizontal = 14.dp, vertical = 10.dp)
+                            .testTag("side_expanded_recording_dock")
                     ) {
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(36.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(14.dp)
                         ) {
+                            // Timer Pill
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(Color(0xFF22222A))
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            if (recorderState == RecorderState.RECORDING) AccentRed.copy(alpha = pulseAlpha)
+                                            else Color(0xFFFFB300)
+                                        )
+                                )
+                                Text(
+                                    text = formattedDuration,
+                                    style = MaterialTheme.typography.titleSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp
+                                    ),
+                                    color = Color.White
+                                )
+                            }
+
                             // 1. Pause / Resume Button
                             DockActionButton(
                                 label = if (recorderState == RecorderState.PAUSED) "Resume" else "Pause",
@@ -393,60 +469,54 @@ fun RecordingHudScreen(
                                 tag = "dock_btn_stop"
                             )
 
-                            // 3. Hide Button (Minimize HUD)
+                            // 3. Minimize / Collapse back to circle
                             DockActionButton(
-                                label = "Hide",
+                                label = "Collapse",
                                 icon = Icons.Filled.VisibilityOff,
-                                iconTint = Color.White,
-                                btnBgColor = Color(0xFF26262E),
+                                iconTint = Color(0xFFAAAAAA),
+                                btnBgColor = Color(0xFF202026),
                                 onClick = {
-                                    isHudMinimized = true
+                                    isSideBubbleExpanded = false
                                 },
-                                tag = "dock_btn_hide"
-                            )
-                        }
-                    }
-                }
-
-                // Minimized Floating Pill Indicator (When Dock is Hidden)
-                AnimatedVisibility(
-                    visible = isHudMinimized,
-                    enter = fadeIn() + slideInVertically(initialOffsetY = { it / 2 }),
-                    exit = fadeOut() + slideOutVertically(targetOffsetY = { it / 2 })
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .shadow(16.dp, RoundedCornerShape(24.dp), spotColor = Color.Black)
-                            .clip(RoundedCornerShape(24.dp))
-                            .background(Color(0xFF141418).copy(alpha = 0.92f))
-                            .border(1.dp, Color(0xFF2E2E38), RoundedCornerShape(24.dp))
-                            .clickable { isHudMinimized = false }
-                            .padding(horizontal = 20.dp, vertical = 10.dp)
-                            .testTag("dock_minimized_bubble"),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .clip(CircleShape)
-                                    .background(AccentRed.copy(alpha = pulseAlpha))
-                            )
-                            Text(
-                                text = "Show FlowRec Dock ($formattedDuration)",
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                ),
-                                color = Color.White
+                                tag = "dock_btn_collapse"
                             )
                         }
                     }
                 }
             }
+
+            // Quick button to minimize app to phone's Home Screen
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(bottom = 20.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color(0xFF141418).copy(alpha = 0.85f))
+                        .border(1.dp, Color(0xFF2E2E38), RoundedCornerShape(20.dp))
+                        .clickable {
+                            val homeIntent = android.content.Intent(android.content.Intent.ACTION_MAIN).apply {
+                                addCategory(android.content.Intent.CATEGORY_HOME)
+                                flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+                            }
+                            context.startActivity(homeIntent)
+                        }
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = "Minimize to Main Screen",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        ),
+                        color = Color(0xFFDDDDDD)
+                    )
+                }
+            }
+
         }
     }
 }

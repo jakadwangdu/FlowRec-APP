@@ -20,13 +20,16 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Adjust
+import androidx.compose.material.icons.filled.BlurOn
+import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.CenterFocusStrong
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.CropFree
 import androidx.compose.material.icons.filled.HighlightAlt
-import androidx.compose.material.icons.filled.Mouse
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -47,6 +50,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -54,8 +58,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.ZoomEasing
 import com.example.ui.components.FlowRecTopBar
+import com.example.ui.theme.AccentRed
 import com.example.ui.viewmodel.FlowRecViewModel
-import com.example.ui.viewmodel.Screen
 
 @Composable
 fun EffectsPanelScreen(
@@ -67,15 +71,29 @@ fun EffectsPanelScreen(
 ) {
     BackHandler { onBackClick() }
 
-    val cursorEnabled by viewModel.cursorEnabled.collectAsState()
-    val cursorStyle by viewModel.cursorStyle.collectAsState()
-    val cursorSize by viewModel.cursorSize.collectAsState()
+    // Touch Feedback / Tap feedback (replaces desktop cursor for phone screen recording)
+    val touchEnabled by viewModel.cursorEnabled.collectAsState()
+    val touchStyle by viewModel.touchFeedbackStyle.collectAsState()
+    val touchSize by viewModel.cursorSize.collectAsState()
+    val touchColor by viewModel.touchFeedbackColor.collectAsState()
 
+    // Mobile Facecam Overlay
+    val facecamEnabled by viewModel.facecamEnabled.collectAsState()
+    val facecamShape by viewModel.facecamShape.collectAsState()
+    val facecamSize by viewModel.facecamSize.collectAsState()
+
+    // Screen Brush & Drawing
+    val brushEnabled by viewModel.brushEnabled.collectAsState()
+    val brushColor by viewModel.brushColor.collectAsState()
+    val brushThickness by viewModel.brushThickness.collectAsState()
+
+    // Tap Auto-Zoom
     val clickZoomEnabled by viewModel.clickZoomEnabled.collectAsState()
     val zoomLevel by viewModel.zoomLevel.collectAsState()
     val zoomDurationMs by viewModel.zoomDurationMs.collectAsState()
     val zoomEasing by viewModel.zoomEasing.collectAsState()
 
+    // Smooth Pan & Motion Blur
     val motionBlurEnabled by viewModel.motionBlurEnabled.collectAsState()
     val blurAmount by viewModel.blurAmount.collectAsState()
 
@@ -84,7 +102,7 @@ fun EffectsPanelScreen(
     Scaffold(
         topBar = {
             FlowRecTopBar(
-                title = "Effects",
+                title = "Phone Effects",
                 onBackClick = onBackClick
             )
         },
@@ -98,7 +116,7 @@ fun EffectsPanelScreen(
                 .padding(horizontal = 20.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            // Sub-Tabs: Recording | Effects | Export
+            // Sub-Tabs: Recording | Effects | Export (Matching Pic 3 layout)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -129,120 +147,7 @@ fun EffectsPanelScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // SECTION 1: CURSOR
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Mouse,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Text(
-                        text = "Cursor",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
-                        ),
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                }
-
-                Switch(
-                    checked = cursorEnabled,
-                    onCheckedChange = { viewModel.setCursorEnabled(it) },
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                        checkedTrackColor = MaterialTheme.colorScheme.primary
-                    )
-                )
-            }
-
-            if (cursorEnabled) {
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // Cursor Style Selectors
-                Text(
-                    text = "Cursor Style",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    CursorStyleButton(
-                        icon = Icons.Filled.Mouse,
-                        isSelected = cursorStyle == "DEFAULT",
-                        onClick = { viewModel.setCursorStyle("DEFAULT") },
-                        modifier = Modifier.weight(1f)
-                    )
-                    CursorStyleButton(
-                        icon = Icons.Filled.HighlightAlt,
-                        isSelected = cursorStyle == "TARGET",
-                        onClick = { viewModel.setCursorStyle("TARGET") },
-                        modifier = Modifier.weight(1f)
-                    )
-                    CursorStyleButton(
-                        icon = Icons.Filled.Search,
-                        isSelected = cursorStyle == "MAGNIFIER",
-                        onClick = { viewModel.setCursorStyle("MAGNIFIER") },
-                        modifier = Modifier.weight(1f)
-                    )
-                    CursorStyleButton(
-                        icon = Icons.Filled.CenterFocusStrong,
-                        isSelected = cursorStyle == "RING",
-                        onClick = { viewModel.setCursorStyle("RING") },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // Cursor Size Slider
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Size",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "$cursorSize%",
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                }
-
-                Slider(
-                    value = cursorSize.toFloat(),
-                    onValueChange = { viewModel.setCursorSize(it.toInt()) },
-                    valueRange = 50f..200f,
-                    colors = SliderDefaults.colors(
-                        thumbColor = MaterialTheme.colorScheme.onBackground,
-                        activeTrackColor = MaterialTheme.colorScheme.onBackground
-                    )
-                )
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // SECTION 2: CLICK ZOOM
+            // SECTION 1: TOUCHES & TAP FEEDBACK (Phone Screen Recording)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -258,14 +163,368 @@ fun EffectsPanelScreen(
                         tint = MaterialTheme.colorScheme.onBackground,
                         modifier = Modifier.size(20.dp)
                     )
+                    Column {
+                        Text(
+                            text = "Show Touches & Taps",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
+                            ),
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Text(
+                            text = "Visual tap indicator on finger touches",
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Switch(
+                    checked = touchEnabled,
+                    onCheckedChange = { viewModel.setCursorEnabled(it) },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                        checkedTrackColor = MaterialTheme.colorScheme.primary
+                    )
+                )
+            }
+
+            if (touchEnabled) {
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Text(
+                    text = "Touch Feedback Style",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    PhoneEffectButton(
+                        label = "Ripple",
+                        icon = Icons.Filled.Adjust,
+                        isSelected = touchStyle == "RIPPLE" || touchStyle == "DEFAULT",
+                        onClick = { viewModel.setTouchFeedbackStyle("RIPPLE") },
+                        modifier = Modifier.weight(1f)
+                    )
+                    PhoneEffectButton(
+                        label = "Glow",
+                        icon = Icons.Filled.CenterFocusStrong,
+                        isSelected = touchStyle == "GLOW" || touchStyle == "RING",
+                        onClick = { viewModel.setTouchFeedbackStyle("GLOW") },
+                        modifier = Modifier.weight(1f)
+                    )
+                    PhoneEffectButton(
+                        label = "Target",
+                        icon = Icons.Filled.HighlightAlt,
+                        isSelected = touchStyle == "TARGET",
+                        onClick = { viewModel.setTouchFeedbackStyle("TARGET") },
+                        modifier = Modifier.weight(1f)
+                    )
+                    PhoneEffectButton(
+                        label = "Pointer",
+                        icon = Icons.Filled.TouchApp,
+                        isSelected = touchStyle == "POINTER",
+                        onClick = { viewModel.setTouchFeedbackStyle("POINTER") },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Touch Size Slider
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
-                        text = "Click Zoom",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
-                        ),
+                        text = "Touch Indicator Size",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "$touchSize%",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
                         color = MaterialTheme.colorScheme.onBackground
                     )
+                }
+
+                Slider(
+                    value = touchSize.toFloat(),
+                    onValueChange = { viewModel.setCursorSize(it.toInt()) },
+                    valueRange = 50f..200f,
+                    colors = SliderDefaults.colors(
+                        thumbColor = MaterialTheme.colorScheme.onBackground,
+                        activeTrackColor = MaterialTheme.colorScheme.onBackground
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Touch Color Choice
+                Text(
+                    text = "Touch Indicator Color",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    val colors = listOf(
+                        "#FF4444" to Color(0xFFFF4444),
+                        "#00E5FF" to Color(0xFF00E5FF),
+                        "#FFB300" to Color(0xFFFFB300),
+                        "#FFFFFF" to Color(0xFFFFFFFF)
+                    )
+                    colors.forEach { (hex, clr) ->
+                        val isSelected = touchColor == hex
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .background(clr)
+                                .border(
+                                    width = if (isSelected) 2.5.dp else 1.dp,
+                                    color = if (isSelected) MaterialTheme.colorScheme.onBackground else Color.DarkGray,
+                                    shape = CircleShape
+                                )
+                                .clickable { viewModel.setTouchFeedbackColor(hex) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isSelected) {
+                                Icon(
+                                    imageVector = Icons.Filled.Check,
+                                    contentDescription = null,
+                                    tint = if (hex == "#FFFFFF") Color.Black else Color.White,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // SECTION 2: FACECAM / FRONT CAMERA OVERLAY (Mobile feature)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Videocam,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Column {
+                        Text(
+                            text = "Front Camera (Facecam)",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
+                            ),
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Text(
+                            text = "Floating camera PIP over screen recording",
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Switch(
+                    checked = facecamEnabled,
+                    onCheckedChange = { viewModel.setFacecamEnabled(it) },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                        checkedTrackColor = MaterialTheme.colorScheme.primary
+                    )
+                )
+            }
+
+            if (facecamEnabled) {
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Text(
+                    text = "Camera Window Shape",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    PhoneEffectButton(
+                        label = "Circle",
+                        icon = Icons.Filled.Adjust,
+                        isSelected = facecamShape == "CIRCLE",
+                        onClick = { viewModel.setFacecamShape("CIRCLE") },
+                        modifier = Modifier.weight(1f)
+                    )
+                    PhoneEffectButton(
+                        label = "Rounded Rect",
+                        icon = Icons.Filled.CenterFocusStrong,
+                        isSelected = facecamShape == "RECT",
+                        onClick = { viewModel.setFacecamShape("RECT") },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = "Camera Window Size",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf("SMALL" to "Small", "MEDIUM" to "Medium", "LARGE" to "Large").forEach { (szKey, szLabel) ->
+                        PhoneEffectButton(
+                            label = szLabel,
+                            icon = Icons.Filled.Videocam,
+                            isSelected = facecamSize == szKey,
+                            onClick = { viewModel.setFacecamSize(szKey) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // SECTION 3: SCREEN BRUSH & DRAWING (Mobile feature)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Brush,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Column {
+                        Text(
+                            text = "Screen Brush & Drawing",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
+                            ),
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Text(
+                            text = "Draw and highlight directly on screen",
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Switch(
+                    checked = brushEnabled,
+                    onCheckedChange = { viewModel.setBrushEnabled(it) },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                        checkedTrackColor = MaterialTheme.colorScheme.primary
+                    )
+                )
+            }
+
+            if (brushEnabled) {
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Brush Thickness",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "${brushThickness}px",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+
+                Slider(
+                    value = brushThickness.toFloat(),
+                    onValueChange = { viewModel.setBrushThickness(it.toInt()) },
+                    valueRange = 2f..24f,
+                    colors = SliderDefaults.colors(
+                        thumbColor = MaterialTheme.colorScheme.onBackground,
+                        activeTrackColor = MaterialTheme.colorScheme.onBackground
+                    )
+                )
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // SECTION 4: TAP AUTO-ZOOM (Smart mobile focal zoom)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.ZoomIn,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Column {
+                        Text(
+                            text = "Tap Auto-Zoom",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
+                            ),
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Text(
+                            text = "Smoothly zooms into tapped buttons/areas",
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
 
                 Switch(
@@ -353,7 +612,7 @@ fun EffectsPanelScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Easing",
+                            text = "Easing Curve",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -393,7 +652,7 @@ fun EffectsPanelScreen(
             HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
             Spacer(modifier = Modifier.height(20.dp))
 
-            // SECTION 3: MOTION BLUR
+            // SECTION 5: SMOOTH PAN & MOTION BLUR
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -404,19 +663,26 @@ fun EffectsPanelScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.CropFree,
+                        imageVector = Icons.Filled.BlurOn,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onBackground,
                         modifier = Modifier.size(20.dp)
                     )
-                    Text(
-                        text = "Motion Blur",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
-                        ),
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
+                    Column {
+                        Text(
+                            text = "Smooth Pan & Blur",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
+                            ),
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Text(
+                            text = "Cinematic 60fps pan smoothing",
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
 
                 Switch(
@@ -432,7 +698,6 @@ fun EffectsPanelScreen(
             if (motionBlurEnabled) {
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Blur Amount Slider
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -473,7 +738,7 @@ private fun EffectsTopSubTab(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val bg = if (isSelected) MaterialTheme.colorScheme.surface else androidx.compose.ui.graphics.Color.Transparent
+    val bg = if (isSelected) MaterialTheme.colorScheme.surface else Color.Transparent
     val textColor = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
 
     Box(
@@ -496,7 +761,8 @@ private fun EffectsTopSubTab(
 }
 
 @Composable
-private fun CursorStyleButton(
+private fun PhoneEffectButton(
+    label: String,
     icon: ImageVector,
     isSelected: Boolean,
     onClick: () -> Unit,
@@ -507,18 +773,31 @@ private fun CursorStyleButton(
 
     Box(
         modifier = modifier
-            .height(44.dp)
-            .clip(RoundedCornerShape(10.dp))
+            .height(48.dp)
+            .clip(RoundedCornerShape(12.dp))
             .background(bg)
-            .border(if (isSelected) 1.5.dp else 0.5.dp, borderColor, RoundedCornerShape(10.dp))
-            .clickable(onClick = onClick),
+            .border(if (isSelected) 1.5.dp else 0.5.dp, borderColor, RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 6.dp),
         contentAlignment = Alignment.Center
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = if (isSelected) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(20.dp)
-        )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = if (isSelected) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = label,
+                fontSize = 10.sp,
+                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                color = if (isSelected) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
