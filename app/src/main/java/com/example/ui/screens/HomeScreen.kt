@@ -73,7 +73,7 @@ fun HomeScreen(
     onNewRecordingClick: () -> Unit,
     onViewAllClick: () -> Unit,
     onSettingsClick: () -> Unit,
-    onAddQuickTileClick: () -> Unit,
+    onAddQuickTileClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val recState by viewModel.recorderEngine.state.collectAsState()

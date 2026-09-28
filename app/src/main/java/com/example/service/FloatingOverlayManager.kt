@@ -93,7 +93,7 @@ class FloatingOverlayManager(private val context: Context) {
         handler.post {
             if (paused) {
                 recDot?.clearAnimation()
-                recDot?.background = createCircleDrawable(Color(0xFFFFB300))
+                recDot?.background = createCircleDrawable(Color.parseColor("#FFB300"))
                 pauseIcon?.setImageResource(android.R.drawable.ic_media_play)
                 pauseText?.text = "Resume"
             } else {
@@ -260,7 +260,7 @@ class FloatingOverlayManager(private val context: Context) {
             val dot = View(context).apply {
                 val dotSize = dpToPx(10)
                 layoutParams = LinearLayout.LayoutParams(dotSize, dotSize)
-                background = createCircleDrawable(Color(0xFFFF3B30))
+                background = createCircleDrawable(Color.parseColor("#FF3B30"))
             }
             recDot = dot
 
