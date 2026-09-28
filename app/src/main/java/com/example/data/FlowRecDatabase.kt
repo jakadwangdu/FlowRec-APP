@@ -12,7 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.util.UUID
 
-@Database(entities = [ProjectEntity::class], version = 1, exportSchema = false)
+@Database(entities = [ProjectEntity::class], version = 2, exportSchema = false)
 abstract class FlowRecDatabase : RoomDatabase() {
     abstract fun projectDao(): ProjectDao
 

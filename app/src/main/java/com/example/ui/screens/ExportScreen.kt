@@ -79,14 +79,6 @@ fun ExportScreen(
     var showQualityMenu by remember { mutableStateOf(false) }
     var showAdvanced by remember { mutableStateOf(false) }
 
-    val thumbResId = remember(project.thumbnailResName) {
-        val res = context.resources.getIdentifier(
-            project.thumbnailResName,
-            "drawable",
-            context.packageName
-        )
-        if (res != 0) res else android.R.drawable.ic_menu_gallery
-    }
 
     Scaffold(
         topBar = {

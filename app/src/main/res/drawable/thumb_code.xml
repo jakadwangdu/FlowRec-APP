@@ -1,0 +1,105 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="160dp"
+    android:height="100dp"
+    android:viewportWidth="160"
+    android:viewportHeight="100">
+
+    <!-- IDE Background -->
+    <path
+        android:fillColor="#18181B"
+        android:pathData="M0,0 H160 V100 H0 Z" />
+
+    <!-- Window Title Bar -->
+    <path
+        android:fillColor="#27272A"
+        android:pathData="M0,0 H160 V16 H0 Z" />
+
+    <!-- Window Controls (Red, Yellow, Green Dots) -->
+    <path
+        android:fillColor="#EF4444"
+        android:pathData="M10,8 A3,3 0 1,0 10,2 A3,3 0 1,0 10,8 Z" />
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M18,8 A3,3 0 1,0 18,2 A3,3 0 1,0 18,8 Z" />
+    <path
+        android:fillColor="#10B981"
+        android:pathData="M26,8 A3,3 0 1,0 26,2 A3,3 0 1,0 26,8 Z" />
+
+    <!-- Left Gutter / Line Numbers Column -->
+    <path
+        android:fillColor="#202023"
+        android:pathData="M0,16 H24 V100 H0 Z" />
+
+    <!-- Line Number Dots -->
+    <path
+        android:fillColor="#52525B"
+        android:pathData="M12,27 H14 V29 H12 Z M12,39 H14 V41 H12 Z M12,51 H14 V53 H12 Z M12,63 H14 V65 H12 Z M12,75 H14 V77 H12 Z M12,87 H14 V89 H12 Z" />
+
+    <!-- Code Line 1: const recorder = new Recorder() -->
+    <path
+        android:fillColor="#C084FC"
+        android:pathData="M32,26 H56 V30 H32 Z" />
+    <path
+        android:fillColor="#60A5FA"
+        android:pathData="M60,26 H92 V30 H60 Z" />
+    <path
+        android:fillColor="#F472B6"
+        android:pathData="M96,26 H102 V30 H96 Z" />
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M106,26 H138 V30 H106 Z" />
+
+    <!-- Code Line 2: recorder.start({ fps: 60 }) -->
+    <path
+        android:fillColor="#60A5FA"
+        android:pathData="M40,38 H64 V42 H40 Z" />
+    <path
+        android:fillColor="#34D399"
+        android:pathData="M67,38 H88 V42 H67 Z" />
+    <path
+        android:fillColor="#FB923C"
+        android:pathData="M92,38 H118 V42 H92 Z" />
+
+    <!-- Code Line 3: const stream = await capture() -->
+    <path
+        android:fillColor="#C084FC"
+        android:pathData="M40,50 H62 V54 H40 Z" />
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M66,50 H94 V54 H66 Z" />
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M98,50 H124 V54 H98 Z" />
+
+    <!-- Code Line 4: flowrec.export("project.mp4") -->
+    <path
+        android:fillColor="#34D399"
+        android:pathData="M40,62 H72 V66 H40 Z" />
+    <path
+        android:fillColor="#F472B6"
+        android:pathData="M76,62 H128 V66 H76 Z" />
+
+    <!-- Code Line 5: return success -->
+    <path
+        android:fillColor="#C084FC"
+        android:pathData="M32,74 H54 V78 H32 Z" />
+    <path
+        android:fillColor="#60A5FA"
+        android:pathData="M58,74 H82 V78 H58 Z" />
+
+    <!-- Blinking Cursor -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M86,73 H88 V79 H86 Z" />
+
+    <!-- Bottom Status Bar -->
+    <path
+        android:fillColor="#27272A"
+        android:pathData="M0,92 H160 V100 H0 Z" />
+    <path
+        android:fillColor="#3B82F6"
+        android:pathData="M6,95 H28 V98 H6 Z" />
+    <path
+        android:fillColor="#71717A"
+        android:pathData="M130,95 H154 V98 H130 Z" />
+</vector>

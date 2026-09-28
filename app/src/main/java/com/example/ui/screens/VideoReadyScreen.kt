@@ -136,29 +136,24 @@ fun VideoReadyScreen(
                 .background(MaterialTheme.colorScheme.surfaceVariant)
                 .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
         ) {
-            if (isCustomFile && File(actualProject.thumbnailResName).exists()) {
-                AsyncImage(
-                    model = File(actualProject.thumbnailResName),
-                    contentDescription = "Exported Video",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else {
-                val thumbResId = remember(actualProject.thumbnailResName) {
+            val thumbModel: Any = remember(actualProject.thumbnailResName) {
+                if (isCustomFile && File(actualProject.thumbnailResName).exists()) {
+                    File(actualProject.thumbnailResName)
+                } else {
                     val res = context.resources.getIdentifier(
                         actualProject.thumbnailResName,
                         "drawable",
                         context.packageName
                     )
-                    if (res != 0) res else android.R.drawable.ic_menu_gallery
+                    if (res != 0) res else com.example.R.drawable.ic_flowrec_logo
                 }
-                Image(
-                    painter = painterResource(id = thumbResId),
-                    contentDescription = "Exported Video",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
             }
+            AsyncImage(
+                model = thumbModel,
+                contentDescription = "Exported Video",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
 
             // Play icon
             Box(

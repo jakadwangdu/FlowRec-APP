@@ -313,34 +313,27 @@ fun EditorScreen(
                     .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(6.dp)),
                 horizontalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                for (i in 0..4) {
+                val thumbModel: Any = remember(project.thumbnailResName) {
                     if (isCustomFile && File(project.thumbnailResName).exists()) {
-                        AsyncImage(
-                            model = File(project.thumbnailResName),
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(34.dp)
-                        )
+                        File(project.thumbnailResName)
                     } else {
-                        val thumbResId = remember(project.thumbnailResName) {
-                            val res = context.resources.getIdentifier(
-                                project.thumbnailResName,
-                                "drawable",
-                                context.packageName
-                            )
-                            if (res != 0) res else android.R.drawable.ic_menu_gallery
-                        }
-                        Image(
-                            painter = painterResource(id = thumbResId),
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(34.dp)
+                        val res = context.resources.getIdentifier(
+                            project.thumbnailResName,
+                            "drawable",
+                            context.packageName
                         )
+                        if (res != 0) res else com.example.R.drawable.ic_flowrec_logo
                     }
+                }
+                for (i in 0..4) {
+                    AsyncImage(
+                        model = thumbModel,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(34.dp)
+                    )
                 }
             }
 

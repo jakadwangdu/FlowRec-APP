@@ -77,14 +77,6 @@ fun TimelineScreen(
     val currentFormatted = formatSeconds(playheadSec)
     val totalFormatted = formatSeconds(project.durationSeconds)
 
-    val thumbResId = remember(project.thumbnailResName) {
-        val res = context.resources.getIdentifier(
-            project.thumbnailResName,
-            "drawable",
-            context.packageName
-        )
-        if (res != 0) res else android.R.drawable.ic_menu_gallery
-    }
 
     Scaffold(
         topBar = {

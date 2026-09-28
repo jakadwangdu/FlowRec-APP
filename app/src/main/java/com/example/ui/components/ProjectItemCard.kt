@@ -101,29 +101,24 @@ fun ProjectItemCard(
                 .clip(RoundedCornerShape(8.dp))
                 .background(MaterialTheme.colorScheme.surface)
         ) {
-            if (isCustomFile && File(project.thumbnailResName).exists()) {
-                AsyncImage(
-                    model = File(project.thumbnailResName),
-                    contentDescription = project.name,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else {
-                val thumbResId = remember(project.thumbnailResName) {
+            val thumbModel: Any = remember(project.thumbnailResName) {
+                if (isCustomFile && File(project.thumbnailResName).exists()) {
+                    File(project.thumbnailResName)
+                } else {
                     val res = context.resources.getIdentifier(
                         project.thumbnailResName,
                         "drawable",
                         context.packageName
                     )
-                    if (res != 0) res else android.R.drawable.ic_menu_gallery
+                    if (res != 0) res else com.example.R.drawable.ic_flowrec_logo
                 }
-                Image(
-                    painter = painterResource(id = thumbResId),
-                    contentDescription = project.name,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
             }
+            AsyncImage(
+                model = thumbModel,
+                contentDescription = project.name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
 
             // Play indicator icon
             Box(

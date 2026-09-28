@@ -1,0 +1,79 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="160dp"
+    android:height="100dp"
+    android:viewportWidth="160"
+    android:viewportHeight="100">
+
+    <!-- Dark Gradient Surface Background -->
+    <path
+        android:fillColor="#090A0F"
+        android:pathData="M0,0 H160 V100 H0 Z" />
+
+    <!-- Top Glow / Ambient Light -->
+    <path
+        android:fillColor="#1E1B4B"
+        android:pathData="M0,0 H160 V35 H0 Z" />
+
+    <!-- Top App Navigation / Header Bar -->
+    <path
+        android:fillColor="#18181B"
+        android:pathData="M16,10 H144 V24 H16 Z" />
+    <path
+        android:fillColor="#6366F1"
+        android:pathData="M24,14 H40 V20 H24 Z" />
+    <path
+        android:fillColor="#52525B"
+        android:pathData="M130,15 A2,2 0 1,0 130,19 A2,2 0 1,0 130,15 Z M136,15 A2,2 0 1,0 136,19 A2,2 0 1,0 136,15 Z" />
+
+    <!-- Main Hero Card / Video Preview Box -->
+    <path
+        android:fillColor="#1E1E24"
+        android:pathData="M16,28 H104 V74 H16 Z" />
+
+    <!-- Hero Card Graphic: Waveform / Visualizer -->
+    <path
+        android:fillColor="#4F46E5"
+        android:pathData="M24,52 H30 V66 H24 Z M34,44 H40 V66 H34 Z M44,38 H50 V66 H44 Z M54,48 H60 V66 H54 Z M64,42 H70 V66 H64 Z M74,36 H80 V66 H74 Z M84,50 H90 V66 H84 Z M94,56 H100 V66 H94 Z" />
+
+    <!-- Play Badge on Hero Card -->
+    <path
+        android:fillColor="#6366F1"
+        android:pathData="M54,42 L66,49 L54,56 Z" />
+
+    <!-- Side Metrics Widget 1 -->
+    <path
+        android:fillColor="#18181B"
+        android:pathData="M110,28 H144 V48 H110 Z" />
+    <path
+        android:fillColor="#10B981"
+        android:pathData="M116,34 H134 V38 H116 Z" />
+    <path
+        android:fillColor="#34D399"
+        android:pathData="M116,41 H126 V43 H116 Z" />
+
+    <!-- Side Metrics Widget 2 -->
+    <path
+        android:fillColor="#18181B"
+        android:pathData="M110,54 H144 V74 H110 Z" />
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M116,60 H138 V64 H116 Z" />
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M116,67 H128 V69 H116 Z" />
+
+    <!-- Bottom Action Pill / Button -->
+    <path
+        android:fillColor="#6366F1"
+        android:pathData="M16,80 H90 V92 H16 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M30,84 H76 V88 H30 Z" />
+
+    <path
+        android:fillColor="#27272A"
+        android:pathData="M96,80 H144 V92 H96 Z" />
+    <path
+        android:fillColor="#A1A1AA"
+        android:pathData="M106,84 H134 V88 H106 Z" />
+</vector>

@@ -107,26 +107,20 @@ fun FlowRecVideoPlayer(
             )
         } else {
             // Thumbnail Preview
-            val isCustomFile = thumbnailResName.startsWith("/") || thumbnailResName.startsWith("file:")
-            if (isCustomFile && File(thumbnailResName).exists()) {
-                AsyncImage(
-                    model = File(thumbnailResName),
-                    contentDescription = "Video Thumbnail",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else {
-                val resId = remember(thumbnailResName) {
+            val thumbModel: Any = remember(thumbnailResName) {
+                if (isCustomFile && File(thumbnailResName).exists()) {
+                    File(thumbnailResName)
+                } else {
                     val res = context.resources.getIdentifier(thumbnailResName, "drawable", context.packageName)
-                    if (res != 0) res else android.R.drawable.ic_menu_gallery
+                    if (res != 0) res else com.example.R.drawable.ic_flowrec_logo
                 }
-                Image(
-                    painter = painterResource(id = resId),
-                    contentDescription = "Video Thumbnail",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
             }
+            AsyncImage(
+                model = thumbModel,
+                contentDescription = "Video Thumbnail",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
         }
 
         // Center Play / Pause Indicator overlay
