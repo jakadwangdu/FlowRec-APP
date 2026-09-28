@@ -3,6 +3,8 @@ package com.example.ui.screens
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import coil.compose.AsyncImage
+import java.io.File
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -133,6 +135,20 @@ fun ExportScreen(
         ) {
             Spacer(modifier = Modifier.height(8.dp))
 
+            val isCustomFile = project.thumbnailResName.startsWith("/") || project.thumbnailResName.startsWith("file:")
+            val thumbModel: Any = remember(project.thumbnailResName) {
+                if (isCustomFile && File(project.thumbnailResName).exists()) {
+                    File(project.thumbnailResName)
+                } else {
+                    val res = context.resources.getIdentifier(
+                        project.thumbnailResName,
+                        "drawable",
+                        context.packageName
+                    )
+                    if (res != 0) res else com.example.R.drawable.ic_flowrec_logo
+                }
+            }
+
             // Video Preview Box
             Box(
                 modifier = Modifier
@@ -142,8 +158,8 @@ fun ExportScreen(
                     .background(MaterialTheme.colorScheme.surfaceVariant)
                     .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp))
             ) {
-                Image(
-                    painter = painterResource(id = thumbResId),
+                AsyncImage(
+                    model = thumbModel,
                     contentDescription = "Export Video Preview",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()

@@ -58,6 +58,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import coil.compose.AsyncImage
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -112,7 +113,7 @@ fun RecordingHudScreen(
 
     val mountainThumbRes = remember {
         val res = context.resources.getIdentifier("thumb_mountain", "drawable", context.packageName)
-        if (res != 0) res else android.R.drawable.ic_menu_gallery
+        if (res != 0) res else com.example.R.drawable.ic_flowrec_logo
     }
 
     Surface(
@@ -143,8 +144,8 @@ fun RecordingHudScreen(
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             // --- 1. FULL SCREEN RECORDING PREVIEW BACKGROUND ---
-            Image(
-                painter = painterResource(id = mountainThumbRes),
+            AsyncImage(
+                model = mountainThumbRes,
                 contentDescription = "Screen content being recorded",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()

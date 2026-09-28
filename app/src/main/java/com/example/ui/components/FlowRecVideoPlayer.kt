@@ -107,6 +107,7 @@ fun FlowRecVideoPlayer(
             )
         } else {
             // Thumbnail Preview
+            val isCustomFile = thumbnailResName.startsWith("/") || thumbnailResName.startsWith("file:")
             val thumbModel: Any = remember(thumbnailResName) {
                 if (isCustomFile && File(thumbnailResName).exists()) {
                     File(thumbnailResName)

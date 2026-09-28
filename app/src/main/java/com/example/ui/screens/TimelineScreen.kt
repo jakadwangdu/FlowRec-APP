@@ -3,6 +3,8 @@ package com.example.ui.screens
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import coil.compose.AsyncImage
+import java.io.File
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -143,6 +145,20 @@ fun TimelineScreen(
                 .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
+            val isCustomFile = project.thumbnailResName.startsWith("/") || project.thumbnailResName.startsWith("file:")
+            val thumbModel: Any = remember(project.thumbnailResName) {
+                if (isCustomFile && File(project.thumbnailResName).exists()) {
+                    File(project.thumbnailResName)
+                } else {
+                    val res = context.resources.getIdentifier(
+                        project.thumbnailResName,
+                        "drawable",
+                        context.packageName
+                    )
+                    if (res != 0) res else com.example.R.drawable.ic_flowrec_logo
+                }
+            }
+
             // Strip of thumbnails
             Row(
                 modifier = Modifier
@@ -153,8 +169,8 @@ fun TimelineScreen(
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 for (i in 0..2) {
-                    Image(
-                        painter = painterResource(id = thumbResId),
+                    AsyncImage(
+                        model = thumbModel,
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier

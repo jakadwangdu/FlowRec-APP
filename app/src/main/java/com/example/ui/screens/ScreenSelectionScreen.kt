@@ -3,6 +3,7 @@ package com.example.ui.screens
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import coil.compose.AsyncImage
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -73,7 +74,7 @@ fun ScreenSelectionScreen(
 
     val codeThumbRes = remember {
         val res = context.resources.getIdentifier("thumb_code", "drawable", context.packageName)
-        if (res != 0) res else android.R.drawable.ic_menu_gallery
+        if (res != 0) res else com.example.R.drawable.ic_flowrec_logo
     }
 
     Scaffold(
@@ -134,8 +135,8 @@ fun ScreenSelectionScreen(
                     .background(MaterialTheme.colorScheme.surfaceVariant)
                     .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
             ) {
-                Image(
-                    painter = painterResource(id = codeThumbRes),
+                AsyncImage(
+                    model = codeThumbRes,
                     contentDescription = "Screen Preview Mockup",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
