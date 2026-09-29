@@ -1131,7 +1131,7 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun startExport(onCompleted: () -> Unit) {
-        val proj = _selectedProject.value ?: _allProjects.value.firstOrNull()
+        val proj = _selectedProject.value ?: allProjects.value.firstOrNull()
         if (proj == null) {
             Toast.makeText(getApplication(), "No active project to export", Toast.LENGTH_SHORT).show()
             return
