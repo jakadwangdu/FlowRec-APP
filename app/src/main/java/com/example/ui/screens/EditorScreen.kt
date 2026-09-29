@@ -52,6 +52,7 @@ import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.VolumeDown
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -147,6 +148,7 @@ fun EditorScreen(
     val aiAnalysisResult by viewModel.aiAnalysisResult.collectAsState()
     val aiAnalysisProgress by viewModel.aiAnalysisProgress.collectAsState()
     val isAiAnalyzing by viewModel.isAiAnalyzing.collectAsState()
+    val isSourceVideoMissing by viewModel.isSourceVideoMissing.collectAsState()
 
     val totalTimelineMs = editorState.effectiveDurationMs.coerceAtLeast(1000L)
     val currentFormatted = formatSeconds((timelinePositionMs / 1000L).toInt())
@@ -377,6 +379,32 @@ fun EditorScreen(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("Export", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+
+                // Missing source media warning banner
+                if (isSourceVideoMissing) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = AccentRed.copy(alpha = 0.15f)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Icon(Icons.Filled.Warning, contentDescription = null, tint = AccentRed, modifier = Modifier.size(20.dp))
+                            Text(
+                                text = "Source video file is missing from device storage. Cuts and effects are saved, but preview/export requires the original recording.",
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
                         }
                     }
                 }
@@ -740,8 +768,12 @@ fun EditorScreen(
                             label = "Split",
                             icon = Icons.Filled.ContentCut,
                             onClick = {
-                                viewModel.splitAtPlayhead()
-                                Toast.makeText(context, "Clip split at $currentFormatted", Toast.LENGTH_SHORT).show()
+                                val splitSuccess = viewModel.splitAtPlayhead()
+                                if (splitSuccess) {
+                                    Toast.makeText(context, "Clip split at $currentFormatted", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "Cannot split too close to clip edges (min 0.2s)", Toast.LENGTH_SHORT).show()
+                                }
                             },
                             modifier = Modifier.weight(1f)
                         )
@@ -1178,9 +1210,15 @@ fun EditorScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        activeSegmentId?.let { viewModel.deleteSegment(it) }
+                        activeSegmentId?.let { segId ->
+                            val deleteSuccess = viewModel.deleteSegment(segId)
+                            if (deleteSuccess) {
+                                Toast.makeText(context, "Segment deleted (Press Undo to restore)", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "Cannot delete the only remaining clip in the project", Toast.LENGTH_SHORT).show()
+                            }
+                        }
                         showDeleteConfirmDialog = false
-                        Toast.makeText(context, "Segment deleted (Press Undo to restore)", Toast.LENGTH_SHORT).show()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = AccentRed)
                 ) {

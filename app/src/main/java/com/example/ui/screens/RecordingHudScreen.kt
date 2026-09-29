@@ -44,11 +44,15 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -91,6 +95,7 @@ fun RecordingHudScreen(
     var isHudMinimized by remember { mutableStateOf(false) }
     var showFacecam by remember { mutableStateOf(false) }
     var micMuted by remember { mutableStateOf(!config.recordMicrophone) }
+    var showStopConfirmDialog by remember { mutableStateOf(false) }
 
     // Intercept hardware/system back button to safely return to previous screen
     BackHandler {
@@ -228,12 +233,12 @@ fun RecordingHudScreen(
                             color = Color.White
                         )
 
-                        Spacer(modifier = Modifier.width(2.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
 
-                        // Mini inline pause icon
+                        // Accessible inline pause icon
                         Box(
                             modifier = Modifier
-                                .size(26.dp)
+                                .size(36.dp)
                                 .clip(CircleShape)
                                 .background(Color(0xFF26262E))
                                 .clickable {
@@ -247,21 +252,20 @@ fun RecordingHudScreen(
                         ) {
                             Icon(
                                 imageVector = if (recorderState == RecorderState.PAUSED) Icons.Filled.PlayArrow else Icons.Filled.Pause,
-                                contentDescription = "Pause or Resume",
+                                contentDescription = if (recorderState == RecorderState.PAUSED) "Resume Recording" else "Pause Recording",
                                 tint = Color.White,
-                                modifier = Modifier.size(14.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
 
-                        // Mini inline stop icon (red)
+                        // Accessible inline stop icon (red)
                         Box(
                             modifier = Modifier
-                                .size(26.dp)
+                                .size(36.dp)
                                 .clip(CircleShape)
                                 .background(AccentRed)
                                 .clickable {
-                                    viewModel.stopRecording()
-                                    onRecordingComplete()
+                                    showStopConfirmDialog = true
                                 },
                             contentAlignment = Alignment.Center
                         ) {
@@ -269,7 +273,7 @@ fun RecordingHudScreen(
                                 imageVector = Icons.Filled.Stop,
                                 contentDescription = "Stop Recording",
                                 tint = Color.White,
-                                modifier = Modifier.size(14.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }
@@ -367,6 +371,31 @@ fun RecordingHudScreen(
             }
 
         }
+    }
+
+    if (showStopConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showStopConfirmDialog = false },
+            title = { Text("Stop Recording?", fontWeight = FontWeight.Bold) },
+            text = { Text("Your recording will be finalized and saved non-destructively to your projects.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showStopConfirmDialog = false
+                        viewModel.stopRecording()
+                        onRecordingComplete()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentRed)
+                ) {
+                    Text("Stop & Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showStopConfirmDialog = false }) {
+                    Text("Keep Recording")
+                }
+            }
+        )
     }
 }
 

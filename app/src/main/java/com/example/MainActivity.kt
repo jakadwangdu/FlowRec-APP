@@ -152,11 +152,22 @@ fun FlowRecApp(
     }
 
     // Permission launchers
+    var showPermissionSettingsDialog by remember { mutableStateOf<String?>(null) }
+
     val audioPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (!granted) {
-            Toast.makeText(activity, "Microphone audio disabled", Toast.LENGTH_SHORT).show()
+            Toast.makeText(activity, "Microphone audio disabled (can be enabled in Settings)", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (!granted) {
+            viewModel.setFacecamEnabled(false)
+            Toast.makeText(activity, "FaceCam disabled: Camera permission required", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -191,6 +202,12 @@ fun FlowRecApp(
         if (viewModel.recorderEngine.config.value.recordMicrophone) {
             if (ContextCompat.checkSelfPermission(activity, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
                 audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            }
+        }
+
+        if (viewModel.facecamEnabled.value) {
+            if (ContextCompat.checkSelfPermission(activity, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
             }
         }
 

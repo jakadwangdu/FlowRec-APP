@@ -219,11 +219,13 @@ fun VideoReadyScreen(
 
         Spacer(modifier = Modifier.height(36.dp))
 
+        val targetVideoPath = latestResult?.outputPath?.takeIf { File(it).exists() } ?: actualProject.videoPath
+
         // Primary Button: Open File in Gallery
         Button(
             onClick = {
-                if (actualProject.videoPath.isNotBlank()) {
-                    GalleryExporter.openVideoInGallery(context, actualProject.videoPath)
+                if (targetVideoPath.isNotBlank()) {
+                    GalleryExporter.openVideoInGallery(context, targetVideoPath)
                 } else {
                     onOpenFile()
                 }
@@ -258,8 +260,8 @@ fun VideoReadyScreen(
         ) {
             OutlinedButton(
                 onClick = {
-                    if (actualProject.videoPath.isNotBlank()) {
-                        GalleryExporter.shareVideo(context, actualProject.videoPath, actualProject.name)
+                    if (targetVideoPath.isNotBlank()) {
+                        GalleryExporter.shareVideo(context, targetVideoPath, actualProject.name)
                     } else {
                         val shareIntent = Intent(Intent.ACTION_SEND).apply {
                             type = "text/plain"

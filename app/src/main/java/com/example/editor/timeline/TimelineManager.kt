@@ -84,6 +84,18 @@ object TimelineManager {
     }
 
     /**
+     * Checks if a segment can be validly split at the specified timeline playhead timestamp.
+     * Prevents splits too close to edges (minimum 200ms) or on deleted segments.
+     */
+    fun canSplitAtTimelineTime(state: EditorProjectState, timelineTimeMs: Long): Boolean {
+        val (segIndex, sourceTimeMs) = mapTimelineToSource(state, timelineTimeMs)
+        if (segIndex !in state.segments.indices) return false
+        val targetSeg = state.segments[segIndex]
+        if (targetSeg.isDeleted) return false
+        return sourceTimeMs > targetSeg.sourceStartMs + 200L && sourceTimeMs < targetSeg.sourceEndMs - 200L
+    }
+
+    /**
      * Split a segment at the specified timeline playhead timestamp.
      * Generates two independent non-destructive segments at the split point.
      */
@@ -122,12 +134,25 @@ object TimelineManager {
     }
 
     /**
+     * Checks whether a segment can be safely deleted without leaving the timeline empty.
+     */
+    fun canDeleteSegment(state: EditorProjectState, segmentId: String): Boolean {
+        val remainingActive = state.segments.filter { !it.isDeleted && it.id != segmentId }
+        return remainingActive.isNotEmpty()
+    }
+
+    /**
      * Non-destructively marks a segment as deleted (skipping it from playback and duration).
+     * Refuses deletion if it would delete all remaining active clips in the project.
      */
     fun deleteSegment(
         state: EditorProjectState,
         segmentId: String
     ): EditorProjectState {
+        val remainingActive = state.segments.filter { !it.isDeleted && it.id != segmentId }
+        if (remainingActive.isEmpty()) {
+            return state
+        }
         val updatedSegments = state.segments.map { seg ->
             if (seg.id == segmentId) seg.copy(isDeleted = true) else seg
         }

@@ -118,8 +118,21 @@ class ExportEngine(
 
         Log.i(TAG, "Export initialized: ${outWidth}x${outHeight} @ ${outFps}fps, bitrate: $outBitrate bps, duration: ${totalEffectiveDurationMs}ms")
 
-        // 3. Prepare temporary working directory & file
+        // 3. Prepare temporary working directory & file and validate storage
         val tempDir = File(context.cacheDir, "exports").apply { if (!exists()) mkdirs() }
+
+        // Storage pre-flight check: ensure sufficient free space for the rendered export
+        val estimatedBytes = ((outBitrate.toLong() + AUDIO_BITRATE.toLong()) * (totalEffectiveDurationMs / 1000L) / 8L) * 12L / 10L
+        val usableSpace = tempDir.usableSpace
+        if (usableSpace in 1 until (estimatedBytes + 50L * 1024L * 1024L)) {
+            val neededMb = (estimatedBytes + 50L * 1024L * 1024L) / (1024L * 1024L)
+            val availMb = usableSpace / (1024L * 1024L)
+            val err = "Insufficient storage space for export. Need ~$neededMb MB, but only $availMb MB available."
+            Log.e(TAG, err)
+            onProgress(ExportProgress(state = ExportState.FAILED, errorMessage = err))
+            throw IllegalStateException(err)
+        }
+
         val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
         val defaultName = "FlowRec_$timestamp.mp4"
         val fileName = config.outputFileName?.let {

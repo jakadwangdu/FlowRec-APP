@@ -356,6 +356,9 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
     private val _loadedTouchEvents = MutableStateFlow<List<FlowTouchEvent>>(emptyList())
     val loadedTouchEvents: StateFlow<List<FlowTouchEvent>> = _loadedTouchEvents.asStateFlow()
 
+    private val _isSourceVideoMissing = MutableStateFlow(false)
+    val isSourceVideoMissing: StateFlow<Boolean> = _isSourceVideoMissing.asStateFlow()
+
     // Phase 5: Real AI Video Intelligence Layer State
     private val aiEngine = AiAnalysisEngine(application)
     private var aiAnalysisJob: Job? = null
@@ -717,18 +720,30 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
         saveCurrentProjectEditorData()
     }
 
-    fun splitAtPlayhead() {
+    fun splitAtPlayhead(): Boolean {
+        val currentTimeMs = _timelinePositionMs.value
+        if (!TimelineManager.canSplitAtTimelineTime(_editorState.value, currentTimeMs)) {
+            return false
+        }
+        val newState = TimelineManager.splitAtTimelineTime(_editorState.value, currentTimeMs)
+        if (newState == _editorState.value) return false
+
         editorHistory.pushState(_editorState.value)
-        _editorState.value = TimelineManager.splitAtTimelineTime(_editorState.value, _timelinePositionMs.value)
+        _editorState.value = newState
         updateUndoRedoFlags()
         saveCurrentProjectEditorData()
+        return true
     }
 
-    fun deleteSegment(segmentId: String) {
+    fun deleteSegment(segmentId: String): Boolean {
+        if (!TimelineManager.canDeleteSegment(_editorState.value, segmentId)) {
+            return false
+        }
         editorHistory.pushState(_editorState.value)
         _editorState.value = TimelineManager.deleteSegment(_editorState.value, segmentId)
         updateUndoRedoFlags()
         saveCurrentProjectEditorData()
+        return true
     }
 
     fun undo() {
@@ -750,16 +765,26 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun addTextOverlay(textOverlay: TextOverlay) {
+        val durationMs = _editorState.value.effectiveDurationMs.coerceAtLeast(1000L)
+        val clamped = textOverlay.copy(
+            startMs = textOverlay.startMs.coerceAtLeast(0L),
+            endMs = textOverlay.endMs.coerceIn(textOverlay.startMs + 200L, durationMs)
+        )
         editorHistory.pushState(_editorState.value)
-        val updated = _editorState.value.textOverlays + textOverlay
+        val updated = _editorState.value.textOverlays + clamped
         _editorState.value = _editorState.value.copy(textOverlays = updated)
         updateUndoRedoFlags()
         saveCurrentProjectEditorData()
     }
 
     fun updateTextOverlay(textOverlay: TextOverlay) {
+        val durationMs = _editorState.value.effectiveDurationMs.coerceAtLeast(1000L)
+        val clamped = textOverlay.copy(
+            startMs = textOverlay.startMs.coerceAtLeast(0L),
+            endMs = textOverlay.endMs.coerceIn(textOverlay.startMs + 200L, durationMs)
+        )
         editorHistory.pushState(_editorState.value)
-        val updated = _editorState.value.textOverlays.map { if (it.id == textOverlay.id) textOverlay else it }
+        val updated = _editorState.value.textOverlays.map { if (it.id == clamped.id) clamped else it }
         _editorState.value = _editorState.value.copy(textOverlays = updated)
         updateUndoRedoFlags()
         saveCurrentProjectEditorData()
@@ -774,16 +799,26 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun addImageOverlay(imageOverlay: ImageOverlay) {
+        val durationMs = _editorState.value.effectiveDurationMs.coerceAtLeast(1000L)
+        val clamped = imageOverlay.copy(
+            startMs = imageOverlay.startMs.coerceAtLeast(0L),
+            endMs = imageOverlay.endMs.coerceIn(imageOverlay.startMs + 200L, durationMs)
+        )
         editorHistory.pushState(_editorState.value)
-        val updated = _editorState.value.imageOverlays + imageOverlay
+        val updated = _editorState.value.imageOverlays + clamped
         _editorState.value = _editorState.value.copy(imageOverlays = updated)
         updateUndoRedoFlags()
         saveCurrentProjectEditorData()
     }
 
     fun updateImageOverlay(imageOverlay: ImageOverlay) {
+        val durationMs = _editorState.value.effectiveDurationMs.coerceAtLeast(1000L)
+        val clamped = imageOverlay.copy(
+            startMs = imageOverlay.startMs.coerceAtLeast(0L),
+            endMs = imageOverlay.endMs.coerceIn(imageOverlay.startMs + 200L, durationMs)
+        )
         editorHistory.pushState(_editorState.value)
-        val updated = _editorState.value.imageOverlays.map { if (it.id == imageOverlay.id) imageOverlay else it }
+        val updated = _editorState.value.imageOverlays.map { if (it.id == clamped.id) clamped else it }
         _editorState.value = _editorState.value.copy(imageOverlays = updated)
         updateUndoRedoFlags()
         saveCurrentProjectEditorData()
@@ -798,8 +833,15 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun addZoomKeyframe(zoomKeyframe: ZoomKeyframe) {
+        val durationMs = _editorState.value.effectiveDurationMs.coerceAtLeast(1000L)
+        val clamped = zoomKeyframe.copy(
+            timeMs = zoomKeyframe.timeMs.coerceIn(0L, durationMs - 200L),
+            scale = zoomKeyframe.scale.coerceIn(1.0f, 3.5f),
+            focalXPercent = zoomKeyframe.focalXPercent.coerceIn(0f, 1f),
+            focalYPercent = zoomKeyframe.focalYPercent.coerceIn(0f, 1f)
+        )
         editorHistory.pushState(_editorState.value)
-        val updated = _editorState.value.zoomKeyframes + zoomKeyframe
+        val updated = _editorState.value.zoomKeyframes + clamped
         _editorState.value = _editorState.value.copy(zoomKeyframes = updated)
         updateUndoRedoFlags()
         saveCurrentProjectEditorData()
@@ -916,11 +958,14 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
                 }
             }
 
+            val isVideoMissing = project.videoPath.isBlank() || !File(project.videoPath).exists()
+
             viewModelScope.launch(Dispatchers.Main) {
                 _editorState.value = finalState
                 _loadedTouchEvents.value = touchEvents
                 _activeSegmentId.value = finalState.segments.firstOrNull()?.id
                 _aiAnalysisResult.value = loadedAiResult
+                _isSourceVideoMissing.value = isVideoMissing
                 editorHistory.clear()
                 updateUndoRedoFlags()
                 _timelinePositionMs.value = 0L
@@ -1505,6 +1550,12 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
                             val dupEdit = File(origFile.parentFile, "rec_${duplicateId}.flowedit")
                             origEdit.copyTo(dupEdit, overwrite = true)
                         }
+
+                        val origAi = File(project.videoPath.substringBeforeLast(".") + ".flowai")
+                        if (origAi.exists()) {
+                            val dupAi = File(origFile.parentFile, "rec_${duplicateId}.flowai")
+                            origAi.copyTo(dupAi, overwrite = true)
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -1539,6 +1590,9 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
 
                     val editFile = File(project.videoPath.substringBeforeLast(".") + ".flowedit")
                     if (editFile.exists()) editFile.delete()
+
+                    val aiFile = File(project.videoPath.substringBeforeLast(".") + ".flowai")
+                    if (aiFile.exists()) aiFile.delete()
                 }
                 if (project.touchMetadataPath != null) {
                     val tf = File(project.touchMetadataPath)
