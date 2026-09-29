@@ -82,14 +82,14 @@ class FlowRecPhase7ReleaseTest {
 
         val state = EditorProjectState(
             projectId = "proj_prod_100",
-            sourceDurationMs = 12000L,
+            totalSourceDurationMs = 12000L,
             segments = listOf(segment1, segment2),
             textOverlays = listOf(textOverlay),
             imageOverlays = listOf(imageOverlay),
             zoomKeyframes = listOf(zoomKf),
-            touchConfig = TouchOverlayConfig(showTouches = true, style = "RIPPLE", colorHex = "#FF4444"),
+            touchConfig = TouchOverlayConfig(enabled = true, rippleEnabled = true, colorHex = "#FF4444"),
             faceCamTrack = FaceCamEditorTrack(enabled = true, shape = "CIRCLE", sizePercent = 0.25f),
-            audioConfig = AudioTrackConfig(includeOriginal = true, originalVolume = 1.0f)
+            audioConfig = AudioTrackConfig(originalAudioVolume = 1.0f, originalAudioMuted = false)
         )
 
         // Serialize to .flowedit JSON format
@@ -186,15 +186,15 @@ class FlowRecPhase7ReleaseTest {
     @Test
     fun testOfflineAndAccountlessInvariants() {
         // Verify history manager is strictly bounded to prevent memory leaks in long editing sessions
-        val history = EditorHistoryManager(maxStackSize = 5)
+        val history = EditorHistoryManager(maxHistorySize = 5)
         val baseState = EditorProjectState.createDefault("test", 10_000L)
         for (i in 1..10) {
-            history.pushState(baseState.copy(sourceDurationMs = (i * 1000).toLong()))
+            history.pushState(baseState.copy(totalSourceDurationMs = (i * 1000).toLong()))
         }
-        // Stack should be capped at maxStackSize
+        // Stack should be capped at maxHistorySize
         var undoCount = 0
         var cur = baseState
-        while (history.canUndo()) {
+        while (history.canUndo) {
             val popped = history.undo(cur)
             if (popped != null) {
                 cur = popped

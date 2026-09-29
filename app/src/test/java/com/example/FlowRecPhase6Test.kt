@@ -141,11 +141,11 @@ class FlowRecPhase6Test {
             zoomKeyframe = zoomKf
         )
 
-        val history = EditorHistoryManager(maxStackSize = 10)
+        val history = EditorHistoryManager(maxHistorySize = 10)
         val initial = EditorProjectState.createDefault("proj_ai", 10_000L)
 
         val updated = AiDecisionManager.applySuggestion(initial, suggestion, history)
-        assertTrue(history.canUndo())
+        assertTrue(history.canUndo)
         assertEquals(1, updated.zoomKeyframes.size)
 
         // Undo AI action through history
@@ -156,20 +156,20 @@ class FlowRecPhase6Test {
 
     @Test
     fun testEditorHistoryManagerPushUndoRedo() {
-        val history = EditorHistoryManager(maxStackSize = 10)
+        val history = EditorHistoryManager(maxHistorySize = 10)
         val state0 = EditorProjectState.createDefault("test", 5000L)
-        val state1 = state0.copy(timelineZoomLevel = 1.5f)
-        val state2 = state0.copy(timelineZoomLevel = 2.0f)
+        val state1 = state0.copy(version = 2)
+        val state2 = state0.copy(version = 3)
 
-        assertFalse(history.canUndo())
-        assertFalse(history.canRedo())
+        assertFalse(history.canUndo)
+        assertFalse(history.canRedo)
 
         history.pushState(state0)
-        assertTrue(history.canUndo())
+        assertTrue(history.canUndo)
 
         val undone = history.undo(state1)
         assertEquals(state0, undone)
-        assertTrue(history.canRedo())
+        assertTrue(history.canRedo)
 
         val redone = history.redo(state0)
         assertEquals(state1, redone)
