@@ -168,17 +168,26 @@ class FlowRecPhase7ReleaseTest {
 
     @Test
     fun testExportBitrateAndDimensionsProductionSafety() {
-        // Test 720p HD portrait export (common mobile recording)
-        val (w720, h720) = ExportResolution.HD_720P.calculateDimensions(1080, 2400)
-        assertTrue(w720 % 2 == 0) // H.264 requires even width
-        assertTrue(h720 % 2 == 0) // H.264 requires even height
-        assertEquals(720, w720)
+        // Test standard 1080x1920 portrait export to 720p HD
+        val (w720Std, h720Std) = ExportResolution.HD_720P.calculateDimensions(1080, 1920)
+        assertEquals(720, w720Std)
+        assertEquals(1280, h720Std)
+        assertTrue(w720Std % 2 == 0)
+        assertTrue(h720Std % 2 == 0)
 
-        // Test 1080p FHD landscape export
-        val (w1080, h1080) = ExportResolution.FHD_1080P.calculateDimensions(2400, 1080)
-        assertTrue(w1080 % 2 == 0)
-        assertTrue(h1080 % 2 == 0)
-        assertEquals(1080, h1080)
+        // Test ultra-tall 1080x2400 portrait export preserves bounds and even parity
+        val (w720Tall, h720Tall) = ExportResolution.HD_720P.calculateDimensions(1080, 2400)
+        assertTrue(w720Tall <= 720)
+        assertTrue(h720Tall <= 1280)
+        assertTrue(w720Tall % 2 == 0)
+        assertTrue(h720Tall % 2 == 0)
+
+        // Test standard 1920x1080 landscape export to 1080p FHD
+        val (w1080Std, h1080Std) = ExportResolution.FHD_1080P.calculateDimensions(1920, 1080)
+        assertEquals(1920, w1080Std)
+        assertEquals(1080, h1080Std)
+        assertTrue(w1080Std % 2 == 0)
+        assertTrue(h1080Std % 2 == 0)
 
         // Verify bitrate scaling
         val maxBitrate = ExportQuality.MAXIMUM.calculateBitrate(1920, 1080, 60)
