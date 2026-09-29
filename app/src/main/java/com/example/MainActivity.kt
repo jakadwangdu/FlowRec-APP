@@ -53,6 +53,8 @@ import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.LibraryScreen
 import com.example.ui.screens.NewRecordingScreen
 import com.example.ui.screens.ProjectDetailsScreen
+import com.example.ui.screens.ProjectsScreen
+import com.example.ui.screens.RecordScreen
 import com.example.ui.screens.RecordingHudScreen
 import com.example.ui.screens.ScreenSelectionScreen
 import com.example.ui.screens.SettingsScreen

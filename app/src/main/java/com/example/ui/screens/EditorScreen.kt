@@ -143,6 +143,10 @@ fun EditorScreen(
     val activeSegmentId by viewModel.activeSegmentId.collectAsState()
     val activeToolTab by viewModel.activeToolTab.collectAsState()
 
+    val totalTimelineMs = editorState.effectiveDurationMs.coerceAtLeast(1000L)
+    val currentFormatted = formatSeconds((timelinePositionMs / 1000L).toInt())
+    val totalFormatted = formatSeconds((totalTimelineMs / 1000L).toInt())
+
     // Initialize / Load editor state on first entry for this project
     LaunchedEffect(activeProject?.id) {
         if (activeProject != null) {
@@ -264,10 +268,6 @@ fun EditorScreen(
             }
         } else {
             // ACTIVE REAL VIDEO EDITOR
-            val totalTimelineMs = editorState.effectiveDurationMs.coerceAtLeast(1000L)
-            val currentFormatted = formatSeconds((timelinePositionMs / 1000L).toInt())
-            val totalFormatted = formatSeconds((totalTimelineMs / 1000L).toInt())
-
             Column(
                 modifier = Modifier
                     .fillMaxSize()

@@ -27,6 +27,51 @@ class TouchTracker(
     companion object {
         private const val TAG = "TouchTracker"
         private const val BATCH_FLUSH_THRESHOLD = 30
+
+        /**
+         * Reads companion `.flowtouch` file into structured `FlowTouchMetadata`.
+         */
+        fun readMetadata(file: File): FlowTouchMetadata? {
+            if (!file.exists() || file.length() == 0L) return null
+
+            return try {
+                val lines = file.readLines()
+                if (lines.isEmpty()) return null
+
+                val firstLine = lines.first()
+                val recId = firstLine.substringAfter("\"rec_id\":\"", "").substringBefore("\"")
+                val width = firstLine.substringAfter("\"w\":", "1080").substringBefore(",").toIntOrNull() ?: 1080
+                val height = firstLine.substringAfter("\"h\":", "1920").substringBefore(",").toIntOrNull() ?: 1920
+                val startEpoch = firstLine.substringAfter("\"start_epoch\":", "0").substringBefore("}").toLongOrNull() ?: 0L
+
+                val events = mutableListOf<FlowTouchEvent>()
+                var durationMs = 0L
+
+                for (i in 1 until lines.size) {
+                    val line = lines[i].trim()
+                    if (line.isEmpty()) continue
+                    if (line.contains("\"footer\":true")) {
+                        durationMs = line.substringAfter("\"duration_ms\":", "0").substringBefore("}").toLongOrNull() ?: 0L
+                    } else {
+                        FlowTouchEvent.fromJson(line)?.let { events.add(it) }
+                    }
+                }
+
+                FlowTouchMetadata(
+                    version = 1,
+                    recordingId = recId,
+                    videoWidth = width,
+                    videoHeight = height,
+                    startTimeEpochMs = startEpoch,
+                    durationMs = durationMs,
+                    totalEvents = events.size,
+                    events = events
+                )
+            } catch (e: Exception) {
+                Log.w(TAG, "Error reading .flowtouch file: ${e.message}")
+                null
+            }
+        }
     }
 
     private var targetFile: File? = null
@@ -225,52 +270,5 @@ class TouchTracker(
 
         Log.d(TAG, "TouchTracker stopped. Total events recorded: $totalEventsCount")
         return targetFile
-    }
-
-    companion object Helper {
-        /**
-         * Reads companion `.flowtouch` file into structured `FlowTouchMetadata`.
-         */
-        fun readMetadata(file: File): FlowTouchMetadata? {
-            if (!file.exists() || file.length() == 0L) return null
-
-            return try {
-                val lines = file.readLines()
-                if (lines.isEmpty()) return null
-
-                val firstLine = lines.first()
-                val recId = firstLine.substringAfter("\"rec_id\":\"", "").substringBefore("\"")
-                val width = firstLine.substringAfter("\"w\":", "1080").substringBefore(",").toIntOrNull() ?: 1080
-                val height = firstLine.substringAfter("\"h\":", "1920").substringBefore(",").toIntOrNull() ?: 1920
-                val startEpoch = firstLine.substringAfter("\"start_epoch\":", "0").substringBefore("}").toLongOrNull() ?: 0L
-
-                val events = mutableListOf<FlowTouchEvent>()
-                var durationMs = 0L
-
-                for (i in 1 until lines.size) {
-                    val line = lines[i].trim()
-                    if (line.isEmpty()) continue
-                    if (line.contains("\"footer\":true")) {
-                        durationMs = line.substringAfter("\"duration_ms\":", "0").substringBefore("}").toLongOrNull() ?: 0L
-                    } else {
-                        FlowTouchEvent.fromJson(line)?.let { events.add(it) }
-                    }
-                }
-
-                FlowTouchMetadata(
-                    version = 1,
-                    recordingId = recId,
-                    videoWidth = width,
-                    videoHeight = height,
-                    startTimeEpochMs = startEpoch,
-                    durationMs = durationMs,
-                    totalEvents = events.size,
-                    events = events
-                )
-            } catch (e: Exception) {
-                Log.w(TAG, "Error reading .flowtouch file: ${e.message}")
-                null
-            }
-        }
     }
 }

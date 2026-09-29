@@ -364,7 +364,7 @@ class RecorderEngine(
                 _durationSeconds.value = 0
 
                 scope.launch(Dispatchers.Main) {
-                    onFinished(newProject)
+                    onFinished?.invoke(newProject)
                 }
             }
         }
