@@ -767,8 +767,8 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
     fun addTextOverlay(textOverlay: TextOverlay) {
         val durationMs = _editorState.value.effectiveDurationMs.coerceAtLeast(1000L)
         val clamped = textOverlay.copy(
-            startMs = textOverlay.startMs.coerceAtLeast(0L),
-            endMs = textOverlay.endMs.coerceIn(textOverlay.startMs + 200L, durationMs)
+            startTimeMs = textOverlay.startTimeMs.coerceAtLeast(0L),
+            endTimeMs = textOverlay.endTimeMs.coerceIn(textOverlay.startTimeMs + 200L, durationMs)
         )
         editorHistory.pushState(_editorState.value)
         val updated = _editorState.value.textOverlays + clamped
@@ -780,8 +780,8 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
     fun updateTextOverlay(textOverlay: TextOverlay) {
         val durationMs = _editorState.value.effectiveDurationMs.coerceAtLeast(1000L)
         val clamped = textOverlay.copy(
-            startMs = textOverlay.startMs.coerceAtLeast(0L),
-            endMs = textOverlay.endMs.coerceIn(textOverlay.startMs + 200L, durationMs)
+            startTimeMs = textOverlay.startTimeMs.coerceAtLeast(0L),
+            endTimeMs = textOverlay.endTimeMs.coerceIn(textOverlay.startTimeMs + 200L, durationMs)
         )
         editorHistory.pushState(_editorState.value)
         val updated = _editorState.value.textOverlays.map { if (it.id == clamped.id) clamped else it }
@@ -801,8 +801,8 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
     fun addImageOverlay(imageOverlay: ImageOverlay) {
         val durationMs = _editorState.value.effectiveDurationMs.coerceAtLeast(1000L)
         val clamped = imageOverlay.copy(
-            startMs = imageOverlay.startMs.coerceAtLeast(0L),
-            endMs = imageOverlay.endMs.coerceIn(imageOverlay.startMs + 200L, durationMs)
+            startTimeMs = imageOverlay.startTimeMs.coerceAtLeast(0L),
+            endTimeMs = imageOverlay.endTimeMs.coerceIn(imageOverlay.startTimeMs + 200L, durationMs)
         )
         editorHistory.pushState(_editorState.value)
         val updated = _editorState.value.imageOverlays + clamped
@@ -814,8 +814,8 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
     fun updateImageOverlay(imageOverlay: ImageOverlay) {
         val durationMs = _editorState.value.effectiveDurationMs.coerceAtLeast(1000L)
         val clamped = imageOverlay.copy(
-            startMs = imageOverlay.startMs.coerceAtLeast(0L),
-            endMs = imageOverlay.endMs.coerceIn(imageOverlay.startMs + 200L, durationMs)
+            startTimeMs = imageOverlay.startTimeMs.coerceAtLeast(0L),
+            endTimeMs = imageOverlay.endTimeMs.coerceIn(imageOverlay.startTimeMs + 200L, durationMs)
         )
         editorHistory.pushState(_editorState.value)
         val updated = _editorState.value.imageOverlays.map { if (it.id == clamped.id) clamped else it }

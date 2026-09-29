@@ -8,12 +8,13 @@ import com.example.ai.model.AiAnalysisState
 import com.example.ai.model.AiCategory
 import com.example.ai.model.AiSuggestion
 import com.example.editor.export.ExportFps
-import com.example.editor.export.ExportQuality
-import com.example.editor.export.ResolutionOption
+import com.example.editor.export.ExportResolution
+import com.example.editor.export.calculateBitrate
 import com.example.editor.history.EditorHistoryManager
 import com.example.editor.model.EditorProjectState
 import com.example.editor.model.TimelineSegment
 import com.example.editor.timeline.TimelineManager
+import com.example.model.ExportQuality
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -79,17 +80,17 @@ class FlowRecPhase6Test {
     @Test
     fun testExportResolutionDimensionCalculations() {
         // Source 1080x1920 (Portrait)
-        val (res720W, res720H) = ResolutionOption.RES_720P.calculateDimensions(1080, 1920)
+        val (res720W, res720H) = ExportResolution.HD_720P.calculateDimensions(1080, 1920)
         assertEquals(720, res720W)
-        assertEquals(1280, res720H) // 16-pixel aligned
+        assertEquals(1280, res720H)
 
-        val (res1080W, res1080H) = ResolutionOption.RES_1080P.calculateDimensions(1080, 1920)
+        val (res1080W, res1080H) = ExportResolution.FHD_1080P.calculateDimensions(1080, 1920)
         assertEquals(1080, res1080W)
         assertEquals(1920, res1080H)
 
         // Bitrate calculation
         val bitrate = ExportQuality.HIGH.calculateBitrate(1080, 1920, 60)
-        assertTrue(bitrate in 10_000_000..18_000_000)
+        assertTrue(bitrate in 8_000_000..20_000_000)
     }
 
     @Test

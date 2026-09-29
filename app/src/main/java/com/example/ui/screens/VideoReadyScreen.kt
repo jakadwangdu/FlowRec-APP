@@ -219,7 +219,7 @@ fun VideoReadyScreen(
 
         Spacer(modifier = Modifier.height(36.dp))
 
-        val targetVideoPath = latestResult?.outputPath?.takeIf { File(it).exists() } ?: actualProject.videoPath
+        val targetVideoPath = latestResult?.outputFile?.absolutePath?.takeIf { File(it).exists() } ?: actualProject.videoPath
 
         // Primary Button: Open File in Gallery
         Button(
