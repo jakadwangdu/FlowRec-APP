@@ -7,6 +7,7 @@ enum class CaptureMode(val label: String, val description: String) {
 }
 
 enum class RecordingResolution(val label: String, val width: Int, val height: Int) {
+    RES_480P("480p", 854, 480),
     RES_720P("720p", 1280, 720),
     RES_1080P("1080p", 1920, 1080),
     RES_NATIVE("Device Native", 0, 0)
@@ -57,10 +58,32 @@ enum class AppThemeMode(val label: String) {
     DARK("Dark")
 }
 
-enum class AudioSourceMode(val label: String) {
-    NONE("No Sound (Mute)"),
-    SYSTEM("Media Sounds Only"),
-    MIC_AND_SYSTEM("Media Sounds and Mic")
+enum class AudioSourceMode(val label: String, val description: String) {
+    NONE("No Sound (Mute)", "Record without audio"),
+    MIC("Microphone", "Record external voice & mic audio"),
+    INTERNAL("Internal Device Audio", "Record game & app audio (Android 10+)"),
+    MIC_AND_INTERNAL("Mic + Internal Audio", "Record microphone and internal audio together");
+
+    companion object {
+        val SYSTEM get() = INTERNAL
+        val MIC_AND_SYSTEM get() = MIC_AND_INTERNAL
+
+        fun fromString(value: String): AudioSourceMode {
+            return when (value) {
+                "SYSTEM" -> INTERNAL
+                "MIC_AND_SYSTEM" -> MIC_AND_INTERNAL
+                "MIC" -> MIC
+                "INTERNAL" -> INTERNAL
+                "MIC_AND_INTERNAL" -> MIC_AND_INTERNAL
+                "NONE" -> NONE
+                else -> try {
+                    valueOf(value)
+                } catch (e: Exception) {
+                    MIC_AND_INTERNAL
+                }
+            }
+        }
+    }
 }
 
 enum class VideoOrientation(val label: String) {
@@ -72,7 +95,8 @@ enum class VideoOrientation(val label: String) {
 enum class CountdownOption(val label: String, val seconds: Int) {
     OFF("Off (Instant)", 0),
     SEC_3("3 Seconds", 3),
-    SEC_5("5 Seconds", 5)
+    SEC_5("5 Seconds", 5),
+    SEC_10("10 Seconds", 10)
 }
 
 enum class RecorderState {

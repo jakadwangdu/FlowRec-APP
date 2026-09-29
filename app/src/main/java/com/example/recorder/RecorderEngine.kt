@@ -36,7 +36,7 @@ data class RecordingConfig(
     val mode: CaptureMode = CaptureMode.SCREEN,
     val resolution: RecordingResolution = RecordingResolution.RES_1080P,
     val frameRate: FrameRate = FrameRate.FPS_30,
-    val audioSource: AudioSourceMode = AudioSourceMode.MIC_AND_SYSTEM,
+    val audioSource: AudioSourceMode = AudioSourceMode.MIC_AND_INTERNAL,
     val recordSystemAudio: Boolean = true,
     val recordMicrophone: Boolean = true,
     val showTouches: Boolean = true,
@@ -44,9 +44,22 @@ data class RecordingConfig(
     val autoSaveToGallery: Boolean = true,
     val orientation: VideoOrientation = VideoOrientation.AUTO,
     val countdownOption: CountdownOption = CountdownOption.SEC_3,
+    val isGameMode: Boolean = false,
     val shakeToStop: Boolean = false,
     val showCursor: Boolean = false,
-    val clickEffects: Boolean = true
+    val clickEffects: Boolean = true,
+    // Phase 2: FaceCam and Touch Tracking
+    val facecamEnabled: Boolean = false,
+    val facecamShape: String = "CIRCLE",
+    val facecamSize: String = "MEDIUM",
+    val facecamFrontLens: Boolean = true,
+    val touchTrackingEnabled: Boolean = true,
+    val touchRippleEnabled: Boolean = true,
+    val touchHighlightEnabled: Boolean = true,
+    val touchMovementTrackingEnabled: Boolean = false,
+    val touchEffectSizeDp: Int = 36,
+    val touchEffectDurationMs: Int = 500,
+    val touchEffectOpacity: Float = 0.8f
 )
 
 class RecorderEngine(
@@ -78,41 +91,57 @@ class RecorderEngine(
     private var projectionResultData: Intent? = null
     private var currentOutputFile: File? = null
 
+    var onProjectIdSavedListener: ((String) -> Unit)? = null
     var onExternalStopListener: ((ProjectEntity) -> Unit)? = null
 
     init {
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
-                if (intent?.action == ScreenRecorderService.ACTION_STATE_CHANGED) {
-                    when (intent.getStringExtra(ScreenRecorderService.EXTRA_STATE)) {
-                        "RECORDING" -> {
-                            if (_state.value != RecorderState.RECORDING) {
-                                _state.value = RecorderState.RECORDING
+                when (intent?.action) {
+                    ScreenRecorderService.ACTION_STATE_CHANGED -> {
+                        when (intent.getStringExtra(ScreenRecorderService.EXTRA_STATE)) {
+                            "RECORDING" -> {
+                                if (_state.value != RecorderState.RECORDING) {
+                                    _state.value = RecorderState.RECORDING
+                                }
                             }
-                        }
-                        "PAUSED" -> {
-                            if (_state.value == RecorderState.RECORDING) {
-                                _state.value = RecorderState.PAUSED
-                                accumulatedDuration += SystemClock.elapsedRealtime() - recordingStartTime
+                            "PAUSED" -> {
+                                if (_state.value == RecorderState.RECORDING) {
+                                    _state.value = RecorderState.PAUSED
+                                    timerJob?.cancel()
+                                }
+                            }
+                            "STOPPED" -> {
+                                _state.value = RecorderState.IDLE
+                                timerJob?.cancel()
+                            }
+                            "ERROR" -> {
+                                _state.value = RecorderState.ERROR
                                 timerJob?.cancel()
                             }
                         }
-                        "STOPPED" -> {
-                            if (_state.value == RecorderState.RECORDING || _state.value == RecorderState.PAUSED) {
-                                stopRecording("Screen Recording") { project ->
-                                    onExternalStopListener?.invoke(project)
-                                }
-                            }
-                        }
-                        "ERROR" -> {
-                            _state.value = RecorderState.ERROR
-                            timerJob?.cancel()
+                    }
+                    ScreenRecorderService.ACTION_TIMER_TICK -> {
+                        val sec = intent.getIntExtra(ScreenRecorderService.EXTRA_DURATION_SECONDS, 0)
+                        _durationSeconds.value = sec
+                    }
+                    ScreenRecorderService.ACTION_RECORDING_SAVED -> {
+                        val projId = intent.getStringExtra(ScreenRecorderService.EXTRA_PROJECT_ID)
+                        _state.value = RecorderState.IDLE
+                        _durationSeconds.value = 0
+                        timerJob?.cancel()
+                        if (projId != null) {
+                            onProjectIdSavedListener?.invoke(projId)
                         }
                     }
                 }
             }
         }
-        val filter = IntentFilter(ScreenRecorderService.ACTION_STATE_CHANGED)
+        val filter = IntentFilter().apply {
+            addAction(ScreenRecorderService.ACTION_STATE_CHANGED)
+            addAction(ScreenRecorderService.ACTION_TIMER_TICK)
+            addAction(ScreenRecorderService.ACTION_RECORDING_SAVED)
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
         } else {
@@ -135,11 +164,18 @@ class RecorderEngine(
     }
 
     fun startCountdown(onCountdownComplete: () -> Unit) {
+        val totalSec = _config.value.countdownOption.seconds
+        if (totalSec <= 0) {
+            _state.value = RecorderState.RECORDING
+            startRecording()
+            onCountdownComplete()
+            return
+        }
         _state.value = RecorderState.COUNTDOWN
-        _countdown.value = 3
+        _countdown.value = totalSec
         countdownJob?.cancel()
         countdownJob = scope.launch(Dispatchers.Main) {
-            for (i in 3 downTo 1) {
+            for (i in totalSec downTo 1) {
                 _countdown.value = i
                 delay(1000L)
             }
@@ -175,10 +211,18 @@ class RecorderEngine(
                 resultCode = resultCode,
                 resultData = resultData,
                 outputPath = outputFile.absolutePath,
-                recordAudio = cfg.recordMicrophone,
+                recordAudio = cfg.audioSource != AudioSourceMode.NONE,
                 width = cfg.resolution.width,
                 height = cfg.resolution.height,
-                fps = cfg.frameRate.fps
+                fps = if (cfg.isGameMode) 60 else cfg.frameRate.fps,
+                audioMode = cfg.audioSource,
+                orientation = cfg.orientation,
+                isGameMode = cfg.isGameMode,
+                facecamEnabled = cfg.facecamEnabled,
+                facecamShape = cfg.facecamShape,
+                facecamSize = cfg.facecamSize,
+                facecamFront = cfg.facecamFrontLens,
+                touchTrackingEnabled = cfg.touchTrackingEnabled
             )
         } else {
             Log.w(TAG, "Starting without projection token (fallback mode)")
@@ -191,11 +235,10 @@ class RecorderEngine(
         timerJob?.cancel()
         timerJob = scope.launch(Dispatchers.Default) {
             while (_state.value == RecorderState.RECORDING) {
-                delay(300L)
+                delay(500L)
                 val elapsed = accumulatedDuration + (SystemClock.elapsedRealtime() - recordingStartTime)
                 val sec = (elapsed / 1000L).toInt()
                 _durationSeconds.value = sec
-                com.example.service.FloatingOverlayManager.getInstance(context).updateDuration(sec)
             }
         }
     }
@@ -220,16 +263,22 @@ class RecorderEngine(
         }
     }
 
-    fun stopRecording(projectName: String = "My Recording", onFinished: (ProjectEntity) -> Unit) {
+    fun stopRecording(projectName: String = "My Recording", onFinished: ((ProjectEntity) -> Unit)? = null) {
+        if (onFinished != null) {
+            onExternalStopListener = onFinished
+        }
         if (_state.value == RecorderState.RECORDING || _state.value == RecorderState.PAUSED) {
+            _state.value = RecorderState.PROCESSING
+            timerJob?.cancel()
+
+            if (ScreenRecorderService.isRunning) {
+                ScreenRecorderService.stopRecording(context)
+                return
+            }
+
             if (_state.value == RecorderState.RECORDING) {
                 accumulatedDuration += SystemClock.elapsedRealtime() - recordingStartTime
             }
-            timerJob?.cancel()
-            _state.value = RecorderState.PROCESSING
-
-            ScreenRecorderService.stopRecording(context)
-
             val recordedSec = ((accumulatedDuration / 1000L).coerceAtLeast(1L)).toInt()
 
             scope.launch(Dispatchers.IO) {

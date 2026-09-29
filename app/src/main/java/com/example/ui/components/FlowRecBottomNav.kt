@@ -18,11 +18,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.VideoLibrary
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -40,6 +44,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.ui.theme.AccentRed
 import com.example.ui.viewmodel.Screen
 
 @Composable
@@ -52,22 +57,25 @@ fun FlowRecBottomNav(
         modifier = modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(horizontal = 24.dp, vertical = 10.dp),
+            .padding(horizontal = 14.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center
     ) {
         // Floating Rounded Capsule Dock Container
         Box(
             modifier = Modifier
-                .shadow(16.dp, RoundedCornerShape(28.dp), spotColor = Color.Black.copy(alpha = 0.5f))
-                .clip(RoundedCornerShape(28.dp))
+                .fillMaxWidth()
+                .shadow(16.dp, RoundedCornerShape(26.dp), spotColor = Color.Black.copy(alpha = 0.45f))
+                .clip(RoundedCornerShape(26.dp))
                 .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.95f))
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), RoundedCornerShape(28.dp))
-                .padding(horizontal = 16.dp, vertical = 6.dp)
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(26.dp))
+                .padding(horizontal = 4.dp, vertical = 6.dp)
         ) {
             Row(
-                horizontalArrangement = Arrangement.spacedBy(20.dp),
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceAround,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // 1. HOME
                 BottomNavItem(
                     label = "Home",
                     selected = currentTab == Screen.HOME,
@@ -77,15 +85,38 @@ fun FlowRecBottomNav(
                     testTag = "nav_tab_home"
                 )
 
+                // 2. RECORD
                 BottomNavItem(
-                    label = "Library",
-                    selected = currentTab == Screen.LIBRARY,
-                    selectedIcon = Icons.Filled.VideoLibrary,
-                    unselectedIcon = Icons.Outlined.VideoLibrary,
-                    onClick = { onTabSelected(Screen.LIBRARY) },
-                    testTag = "nav_tab_library"
+                    label = "Record",
+                    selected = currentTab == Screen.RECORD || currentTab == Screen.NEW_RECORDING,
+                    selectedIcon = Icons.Filled.Videocam,
+                    unselectedIcon = Icons.Outlined.Videocam,
+                    isRecordTab = true,
+                    onClick = { onTabSelected(Screen.RECORD) },
+                    testTag = "nav_tab_record"
                 )
 
+                // 3. PROJECTS
+                BottomNavItem(
+                    label = "Projects",
+                    selected = currentTab == Screen.PROJECTS || currentTab == Screen.LIBRARY,
+                    selectedIcon = Icons.Filled.VideoLibrary,
+                    unselectedIcon = Icons.Outlined.VideoLibrary,
+                    onClick = { onTabSelected(Screen.PROJECTS) },
+                    testTag = "nav_tab_projects"
+                )
+
+                // 4. EDITOR
+                BottomNavItem(
+                    label = "Editor",
+                    selected = currentTab == Screen.EDITOR,
+                    selectedIcon = Icons.Filled.Edit,
+                    unselectedIcon = Icons.Outlined.Edit,
+                    onClick = { onTabSelected(Screen.EDITOR) },
+                    testTag = "nav_tab_editor"
+                )
+
+                // 5. SETTINGS
                 BottomNavItem(
                     label = "Settings",
                     selected = currentTab == Screen.SETTINGS,
@@ -105,52 +136,65 @@ private fun BottomNavItem(
     selected: Boolean,
     selectedIcon: ImageVector,
     unselectedIcon: ImageVector,
+    isRecordTab: Boolean = false,
     onClick: () -> Unit,
     testTag: String
 ) {
     val interactionSource = remember { MutableInteractionSource() }
 
+    val activeColor = if (isRecordTab) AccentRed else MaterialTheme.colorScheme.primary
     val tint by animateColorAsState(
-        targetValue = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        targetValue = if (selected) activeColor else MaterialTheme.colorScheme.onSurfaceVariant,
         animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
         label = "tab_tint"
     )
 
     val pillBg by animateColorAsState(
-        targetValue = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else Color.Transparent,
+        targetValue = if (selected) activeColor.copy(alpha = 0.12f) else Color.Transparent,
         animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
         label = "pill_bg"
     )
 
     Column(
         modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(16.dp))
             .background(pillBg)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = onClick
             )
-            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .padding(horizontal = 10.dp, vertical = 5.dp)
             .testTag(testTag),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(
-            imageVector = if (selected) selectedIcon else unselectedIcon,
-            contentDescription = label,
-            tint = tint,
-            modifier = Modifier.size(22.dp)
-        )
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = if (selected) selectedIcon else unselectedIcon,
+                contentDescription = label,
+                tint = tint,
+                modifier = Modifier.size(22.dp)
+            )
+            if (isRecordTab && !selected) {
+                // Subtle red recording dot to signify the core function
+                Box(
+                    modifier = Modifier
+                        .size(5.dp)
+                        .clip(CircleShape)
+                        .background(AccentRed)
+                        .align(Alignment.TopEnd)
+                )
+            }
+        }
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall.copy(
-                fontSize = 11.sp,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                fontSize = 10.5.sp,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
             ),
             color = tint,
-            modifier = Modifier.padding(top = 2.dp)
+            maxLines = 1
         )
     }
 }
-

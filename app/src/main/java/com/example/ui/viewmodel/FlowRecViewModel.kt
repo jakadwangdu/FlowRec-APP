@@ -2,6 +2,9 @@ package com.example.ui.viewmodel
 
 import android.app.Application
 import android.content.Context
+import android.graphics.Bitmap
+import android.media.MediaMetadataRetriever
+import android.util.Log
 import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -29,22 +32,43 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.io.File
+import java.io.FileOutputStream
 import java.util.UUID
+import com.example.recorder.touch.TouchEffectConfig
+import com.example.editor.model.AudioTrackConfig
+import com.example.editor.model.EditorProjectState
+import com.example.editor.model.FaceCamEditorTrack
+import com.example.editor.model.ImageOverlay
+import com.example.editor.model.TextOverlay
+import com.example.editor.model.TimelineSegment
+import com.example.editor.model.TouchOverlayConfig
+import com.example.editor.model.ZoomKeyframe
+import com.example.editor.history.EditorHistoryManager
+import com.example.editor.timeline.TimelineManager
+import com.example.recorder.touch.FlowTouchEvent
+import com.example.recorder.touch.TouchTracker
 
 enum class Screen {
     HOME,
+    RECORD,
+    PROJECTS,
+    EDITOR,
+    SETTINGS,
     NEW_RECORDING,
     SCREEN_SELECTION,
     COUNTDOWN,
     RECORDING_HUD,
     LIBRARY,
     PROJECT_DETAILS,
-    EDITOR,
     EFFECTS,
     TIMELINE,
     EXPORT_SETTINGS,
-    VIDEO_READY,
-    SETTINGS
+    VIDEO_READY
+}
+
+enum class ProjectViewMode {
+    LIST,
+    GRID
 }
 
 enum class LibraryTab {
@@ -75,6 +99,7 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
     init {
         viewModelScope.launch(Dispatchers.IO) {
             dao.deleteDemoProjects()
+            scanAndRecoverOrphanedRecordings()
         }
     }
 
@@ -132,13 +157,14 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
     val autoSaveToGallery: StateFlow<Boolean> = _autoSaveToGallery.asStateFlow()
 
     private val _audioSourceMode = MutableStateFlow(
-        try {
-            AudioSourceMode.valueOf(prefs.getString("audio_source_mode", AudioSourceMode.MIC_AND_SYSTEM.name) ?: AudioSourceMode.MIC_AND_SYSTEM.name)
-        } catch (e: Exception) {
-            AudioSourceMode.MIC_AND_SYSTEM
-        }
+        AudioSourceMode.fromString(
+            prefs.getString("audio_source_mode", AudioSourceMode.MIC_AND_INTERNAL.name) ?: AudioSourceMode.MIC_AND_INTERNAL.name
+        )
     )
     val audioSourceMode: StateFlow<AudioSourceMode> = _audioSourceMode.asStateFlow()
+
+    private val _isGameMode = MutableStateFlow(prefs.getBoolean("is_game_mode", false))
+    val isGameMode: StateFlow<Boolean> = _isGameMode.asStateFlow()
 
     private val _videoOrientation = MutableStateFlow(
         try {
@@ -230,26 +256,96 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
         syncRecorderConfig()
     }
 
+    fun setGameMode(enabled: Boolean) {
+        _isGameMode.value = enabled
+        prefs.edit().putBoolean("is_game_mode", enabled).apply()
+        if (enabled) {
+            applyGameRecordingPreset()
+        } else {
+            syncRecorderConfig()
+        }
+    }
+
+    fun applyGameRecordingPreset() {
+        _isGameMode.value = true
+        _defaultResolution.value = RecordingResolution.RES_1080P
+        _defaultFps.value = FrameRate.FPS_60
+        _audioSourceMode.value = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            AudioSourceMode.MIC_AND_INTERNAL
+        } else {
+            AudioSourceMode.MIC
+        }
+        _videoOrientation.value = VideoOrientation.AUTO
+        prefs.edit()
+            .putBoolean("is_game_mode", true)
+            .putString("default_res", RecordingResolution.RES_1080P.name)
+            .putString("default_fps", FrameRate.FPS_60.name)
+            .putString("audio_source_mode", _audioSourceMode.value.name)
+            .putString("video_orientation", VideoOrientation.AUTO.name)
+            .apply()
+        syncRecorderConfig()
+    }
+
     private fun syncRecorderConfig() {
         val audioMode = _audioSourceMode.value
+        val isGame = _isGameMode.value
         recorderEngine.updateConfig(
             RecordingConfig(
                 resolution = _defaultResolution.value,
-                frameRate = _defaultFps.value,
+                frameRate = if (isGame) FrameRate.FPS_60 else _defaultFps.value,
                 audioSource = audioMode,
-                recordSystemAudio = audioMode != AudioSourceMode.NONE,
-                recordMicrophone = audioMode == AudioSourceMode.MIC_AND_SYSTEM,
+                recordSystemAudio = audioMode == AudioSourceMode.INTERNAL || audioMode == AudioSourceMode.MIC_AND_INTERNAL,
+                recordMicrophone = audioMode == AudioSourceMode.MIC || audioMode == AudioSourceMode.MIC_AND_INTERNAL,
                 showTouches = _showTouches.value,
                 floatingBubbleEnabled = _floatingBubbleEnabled.value,
                 autoSaveToGallery = _autoSaveToGallery.value,
                 orientation = _videoOrientation.value,
                 countdownOption = _countdownOption.value,
-                shakeToStop = _shakeToStop.value
+                isGameMode = isGame,
+                shakeToStop = _shakeToStop.value,
+                showCursor = _cursorEnabled.value,
+                clickEffects = _clickZoomEnabled.value,
+                facecamEnabled = _facecamEnabled.value,
+                facecamShape = _facecamShape.value,
+                facecamSize = _facecamSize.value,
+                facecamFrontLens = _facecamFrontLens.value,
+                touchTrackingEnabled = _showTouches.value,
+                touchRippleEnabled = _touchRippleEnabled.value,
+                touchHighlightEnabled = _touchHighlightEnabled.value,
+                touchMovementTrackingEnabled = _touchMovementTrackingEnabled.value,
+                touchEffectSizeDp = _touchEffectSizeDp.value,
+                touchEffectDurationMs = _touchEffectDurationMs.value,
+                touchEffectOpacity = _touchEffectOpacity.value
             )
         )
     }
 
-    // Editor state
+    // Phase 3: Real Video Editor State & Engine
+    private val editorHistory = EditorHistoryManager()
+
+    private val _editorState = MutableStateFlow(EditorProjectState.createDefault("", 0L))
+    val editorState: StateFlow<EditorProjectState> = _editorState.asStateFlow()
+
+    private val _canUndo = MutableStateFlow(false)
+    val canUndo: StateFlow<Boolean> = _canUndo.asStateFlow()
+
+    private val _canRedo = MutableStateFlow(false)
+    val canRedo: StateFlow<Boolean> = _canRedo.asStateFlow()
+
+    private val _timelinePositionMs = MutableStateFlow(0L)
+    val timelinePositionMs: StateFlow<Long> = _timelinePositionMs.asStateFlow()
+
+    private val _playbackSpeed = MutableStateFlow(1.0f)
+    val playbackSpeed: StateFlow<Float> = _playbackSpeed.asStateFlow()
+
+    private val _loadedTouchEvents = MutableStateFlow<List<FlowTouchEvent>>(emptyList())
+    val loadedTouchEvents: StateFlow<List<FlowTouchEvent>> = _loadedTouchEvents.asStateFlow()
+
+    private val _activeSegmentId = MutableStateFlow<String?>(null)
+    val activeSegmentId: StateFlow<String?> = _activeSegmentId.asStateFlow()
+
+    private val _activeToolTab = MutableStateFlow<String?>(null)
+    val activeToolTab: StateFlow<String?> = _activeToolTab.asStateFlow()
 
     private val _editorTool = MutableStateFlow(EditorTool.CURSOR)
     val editorTool: StateFlow<EditorTool> = _editorTool.asStateFlow()
@@ -281,14 +377,36 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
     val touchFeedbackColor: StateFlow<String> = _touchFeedbackColor.asStateFlow()
 
     // Mobile Facecam Overlay
-    private val _facecamEnabled = MutableStateFlow(false)
+    private val _facecamEnabled = MutableStateFlow(prefs.getBoolean("facecam_enabled", false))
     val facecamEnabled: StateFlow<Boolean> = _facecamEnabled.asStateFlow()
 
-    private val _facecamShape = MutableStateFlow("CIRCLE") // CIRCLE, RECT
+    private val _facecamShape = MutableStateFlow(prefs.getString("facecam_shape", "CIRCLE") ?: "CIRCLE") // CIRCLE, ROUNDED_RECT, RECT
     val facecamShape: StateFlow<String> = _facecamShape.asStateFlow()
 
-    private val _facecamSize = MutableStateFlow("MEDIUM") // SMALL, MEDIUM, LARGE
+    private val _facecamSize = MutableStateFlow(prefs.getString("facecam_size", "MEDIUM") ?: "MEDIUM") // SMALL, MEDIUM, LARGE
     val facecamSize: StateFlow<String> = _facecamSize.asStateFlow()
+
+    private val _facecamFrontLens = MutableStateFlow(prefs.getBoolean("facecam_front_lens", true))
+    val facecamFrontLens: StateFlow<Boolean> = _facecamFrontLens.asStateFlow()
+
+    // Touch Feedback & Tracking Controls (Phase 2)
+    private val _touchRippleEnabled = MutableStateFlow(prefs.getBoolean("touch_ripple", true))
+    val touchRippleEnabled: StateFlow<Boolean> = _touchRippleEnabled.asStateFlow()
+
+    private val _touchHighlightEnabled = MutableStateFlow(prefs.getBoolean("touch_highlight", true))
+    val touchHighlightEnabled: StateFlow<Boolean> = _touchHighlightEnabled.asStateFlow()
+
+    private val _touchMovementTrackingEnabled = MutableStateFlow(prefs.getBoolean("touch_movement", false))
+    val touchMovementTrackingEnabled: StateFlow<Boolean> = _touchMovementTrackingEnabled.asStateFlow()
+
+    private val _touchEffectSizeDp = MutableStateFlow(prefs.getInt("touch_size_dp", 36))
+    val touchEffectSizeDp: StateFlow<Int> = _touchEffectSizeDp.asStateFlow()
+
+    private val _touchEffectDurationMs = MutableStateFlow(prefs.getInt("touch_duration_ms", 500))
+    val touchEffectDurationMs: StateFlow<Int> = _touchEffectDurationMs.asStateFlow()
+
+    private val _touchEffectOpacity = MutableStateFlow(prefs.getFloat("touch_opacity", 0.8f))
+    val touchEffectOpacity: StateFlow<Float> = _touchEffectOpacity.asStateFlow()
 
     // Screen Brush & Annotation
     private val _brushEnabled = MutableStateFlow(false)
@@ -337,19 +455,105 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
     private var playbackJob: Job? = null
     private var exportJob: Job? = null
 
+    init {
+        syncRecorderConfig()
+    }
+
+    // Projects Grid / List View Mode
+    private val _projectsViewMode = MutableStateFlow(
+        try {
+            ProjectViewMode.valueOf(prefs.getString("projects_view_mode", ProjectViewMode.LIST.name) ?: ProjectViewMode.LIST.name)
+        } catch (_: Exception) {
+            ProjectViewMode.LIST
+        }
+    )
+    val projectsViewMode: StateFlow<ProjectViewMode> = _projectsViewMode.asStateFlow()
+
+    fun toggleProjectsViewMode() {
+        val next = if (_projectsViewMode.value == ProjectViewMode.LIST) ProjectViewMode.GRID else ProjectViewMode.LIST
+        _projectsViewMode.value = next
+        prefs.edit().putString("projects_view_mode", next.name).apply()
+    }
+
+    data class StorageInfo(
+        val flowRecBytes: Long,
+        val availableBytes: Long,
+        val totalBytes: Long,
+        val flowRecFormatted: String,
+        val availableFormatted: String,
+        val totalFormatted: String,
+        val usedPercentage: Float
+    )
+
+    fun getStorageInfo(): StorageInfo {
+        var flowRecBytes = 0L
+        try {
+            val recDir = File(getApplication<Application>().filesDir, "recordings")
+            if (recDir.exists()) {
+                flowRecBytes = recDir.walkTopDown().filter { it.isFile }.map { it.length() }.sum()
+            }
+        } catch (_: Exception) {}
+
+        var availableBytes = 8L * 1024 * 1024 * 1024
+        var totalBytes = 64L * 1024 * 1024 * 1024
+        try {
+            val stat = android.os.StatFs(android.os.Environment.getDataDirectory().path)
+            availableBytes = stat.availableBlocksLong * stat.blockSizeLong
+            totalBytes = stat.blockCountLong * stat.blockSizeLong
+        } catch (_: Exception) {}
+
+        val usedPercentage = if (totalBytes > 0) {
+            ((totalBytes - availableBytes).toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
+        } else 0.5f
+
+        fun formatBytes(bytes: Long): String {
+            return when {
+                bytes >= 1024 * 1024 * 1024 -> String.format(java.util.Locale.getDefault(), "%.1f GB", bytes.toFloat() / (1024 * 1024 * 1024))
+                bytes >= 1024 * 1024 -> String.format(java.util.Locale.getDefault(), "%.1f MB", bytes.toFloat() / (1024 * 1024))
+                else -> String.format(java.util.Locale.getDefault(), "%d KB", bytes / 1024)
+            }
+        }
+
+        return StorageInfo(
+            flowRecBytes = flowRecBytes,
+            availableBytes = availableBytes,
+            totalBytes = totalBytes,
+            flowRecFormatted = formatBytes(flowRecBytes),
+            availableFormatted = formatBytes(availableBytes),
+            totalFormatted = formatBytes(totalBytes),
+            usedPercentage = usedPercentage
+        )
+    }
+
     // Navigation Methods
     fun navigateTo(screen: Screen) {
         val currentStack = _navigationStack.value.toMutableList()
-        if (screen == Screen.HOME || screen == Screen.LIBRARY || screen == Screen.SETTINGS) {
-            _bottomNavTab.value = screen
+        val mappedTab = when (screen) {
+            Screen.HOME -> Screen.HOME
+            Screen.RECORD, Screen.NEW_RECORDING -> Screen.RECORD
+            Screen.PROJECTS, Screen.LIBRARY -> Screen.PROJECTS
+            Screen.EDITOR -> Screen.EDITOR
+            Screen.SETTINGS -> Screen.SETTINGS
+            else -> null
+        }
+        if (mappedTab != null) {
+            _bottomNavTab.value = mappedTab
         }
         currentStack.add(screen)
         _navigationStack.value = currentStack
     }
 
     fun switchBottomTab(screen: Screen) {
-        _bottomNavTab.value = screen
-        _navigationStack.value = listOf(screen)
+        val mappedTab = when (screen) {
+            Screen.HOME -> Screen.HOME
+            Screen.RECORD, Screen.NEW_RECORDING -> Screen.RECORD
+            Screen.PROJECTS, Screen.LIBRARY -> Screen.PROJECTS
+            Screen.EDITOR -> Screen.EDITOR
+            Screen.SETTINGS -> Screen.SETTINGS
+            else -> screen
+        }
+        _bottomNavTab.value = mappedTab
+        _navigationStack.value = listOf(mappedTab)
     }
 
     fun navigateBack(): Boolean {
@@ -358,8 +562,16 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
             currentStack.removeAt(currentStack.lastIndex)
             _navigationStack.value = currentStack
             val newTop = currentStack.last()
-            if (newTop == Screen.HOME || newTop == Screen.LIBRARY || newTop == Screen.SETTINGS) {
-                _bottomNavTab.value = newTop
+            val mappedTab = when (newTop) {
+                Screen.HOME -> Screen.HOME
+                Screen.RECORD, Screen.NEW_RECORDING -> Screen.RECORD
+                Screen.PROJECTS, Screen.LIBRARY -> Screen.PROJECTS
+                Screen.EDITOR -> Screen.EDITOR
+                Screen.SETTINGS -> Screen.SETTINGS
+                else -> null
+            }
+            if (mappedTab != null) {
+                _bottomNavTab.value = mappedTab
             }
             true
         } else {
@@ -393,7 +605,10 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
         _zoomEasing.value = project.zoomEasing
         _motionBlurEnabled.value = project.motionBlurEnabled
         _blurAmount.value = project.blurAmountPercent
-        _playheadSeconds.value = (project.durationSeconds * 0.3f).toInt()
+        _playheadSeconds.value = 0
+        _timelinePositionMs.value = 0L
+        _isPlaying.value = false
+        loadProjectEditorData(project)
         navigateTo(Screen.EDITOR)
     }
 
@@ -420,29 +635,269 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun setPlayheadSeconds(seconds: Int) {
-        val maxDuration = _selectedProject.value?.durationSeconds ?: 300
+        val maxDuration = (_editorState.value.effectiveDurationMs / 1000L).toInt().coerceAtLeast(1)
         _playheadSeconds.value = seconds.coerceIn(0, maxDuration)
+        _timelinePositionMs.value = (seconds * 1000L).coerceIn(0L, _editorState.value.effectiveDurationMs)
     }
 
     fun togglePlayPause() {
         _isPlaying.value = !_isPlaying.value
-        if (_isPlaying.value) {
-            playbackJob?.cancel()
-            playbackJob = viewModelScope.launch(Dispatchers.Default) {
-                val maxDuration = _selectedProject.value?.durationSeconds ?: 300
-                while (_isPlaying.value) {
-                    delay(1000L)
-                    val next = _playheadSeconds.value + 1
-                    if (next >= maxDuration) {
-                        _playheadSeconds.value = 0
-                        _isPlaying.value = false
-                    } else {
-                        _playheadSeconds.value = next
+    }
+
+    fun onPlayerTimelineUpdate(timelineMs: Long) {
+        _timelinePositionMs.value = timelineMs
+        _playheadSeconds.value = (timelineMs / 1000L).toInt()
+    }
+
+    fun seekTimeline(timelineMs: Long) {
+        val totalMs = _editorState.value.effectiveDurationMs
+        val clamped = timelineMs.coerceIn(0L, totalMs)
+        _timelinePositionMs.value = clamped
+        _playheadSeconds.value = (clamped / 1000L).toInt()
+    }
+
+    fun setPlaybackSpeed(speed: Float) {
+        _playbackSpeed.value = speed
+    }
+
+    fun setActiveSegmentId(id: String?) {
+        _activeSegmentId.value = id
+    }
+
+    fun setActiveToolTab(tab: String?) {
+        _activeToolTab.value = tab
+    }
+
+    fun applyTrim(segmentId: String, newStartMs: Long, newEndMs: Long) {
+        editorHistory.pushState(_editorState.value)
+        _editorState.value = TimelineManager.trimSegment(_editorState.value, segmentId, newStartMs, newEndMs)
+        updateUndoRedoFlags()
+        saveCurrentProjectEditorData()
+    }
+
+    fun splitAtPlayhead() {
+        editorHistory.pushState(_editorState.value)
+        _editorState.value = TimelineManager.splitAtTimelineTime(_editorState.value, _timelinePositionMs.value)
+        updateUndoRedoFlags()
+        saveCurrentProjectEditorData()
+    }
+
+    fun deleteSegment(segmentId: String) {
+        editorHistory.pushState(_editorState.value)
+        _editorState.value = TimelineManager.deleteSegment(_editorState.value, segmentId)
+        updateUndoRedoFlags()
+        saveCurrentProjectEditorData()
+    }
+
+    fun undo() {
+        val prev = editorHistory.undo(_editorState.value)
+        if (prev != null) {
+            _editorState.value = prev
+            updateUndoRedoFlags()
+            saveCurrentProjectEditorData()
+        }
+    }
+
+    fun redo() {
+        val next = editorHistory.redo(_editorState.value)
+        if (next != null) {
+            _editorState.value = next
+            updateUndoRedoFlags()
+            saveCurrentProjectEditorData()
+        }
+    }
+
+    fun addTextOverlay(textOverlay: TextOverlay) {
+        editorHistory.pushState(_editorState.value)
+        val updated = _editorState.value.textOverlays + textOverlay
+        _editorState.value = _editorState.value.copy(textOverlays = updated)
+        updateUndoRedoFlags()
+        saveCurrentProjectEditorData()
+    }
+
+    fun updateTextOverlay(textOverlay: TextOverlay) {
+        editorHistory.pushState(_editorState.value)
+        val updated = _editorState.value.textOverlays.map { if (it.id == textOverlay.id) textOverlay else it }
+        _editorState.value = _editorState.value.copy(textOverlays = updated)
+        updateUndoRedoFlags()
+        saveCurrentProjectEditorData()
+    }
+
+    fun deleteTextOverlay(id: String) {
+        editorHistory.pushState(_editorState.value)
+        val updated = _editorState.value.textOverlays.filter { it.id != id }
+        _editorState.value = _editorState.value.copy(textOverlays = updated)
+        updateUndoRedoFlags()
+        saveCurrentProjectEditorData()
+    }
+
+    fun addImageOverlay(imageOverlay: ImageOverlay) {
+        editorHistory.pushState(_editorState.value)
+        val updated = _editorState.value.imageOverlays + imageOverlay
+        _editorState.value = _editorState.value.copy(imageOverlays = updated)
+        updateUndoRedoFlags()
+        saveCurrentProjectEditorData()
+    }
+
+    fun updateImageOverlay(imageOverlay: ImageOverlay) {
+        editorHistory.pushState(_editorState.value)
+        val updated = _editorState.value.imageOverlays.map { if (it.id == imageOverlay.id) imageOverlay else it }
+        _editorState.value = _editorState.value.copy(imageOverlays = updated)
+        updateUndoRedoFlags()
+        saveCurrentProjectEditorData()
+    }
+
+    fun deleteImageOverlay(id: String) {
+        editorHistory.pushState(_editorState.value)
+        val updated = _editorState.value.imageOverlays.filter { it.id != id }
+        _editorState.value = _editorState.value.copy(imageOverlays = updated)
+        updateUndoRedoFlags()
+        saveCurrentProjectEditorData()
+    }
+
+    fun addZoomKeyframe(zoomKeyframe: ZoomKeyframe) {
+        editorHistory.pushState(_editorState.value)
+        val updated = _editorState.value.zoomKeyframes + zoomKeyframe
+        _editorState.value = _editorState.value.copy(zoomKeyframes = updated)
+        updateUndoRedoFlags()
+        saveCurrentProjectEditorData()
+    }
+
+    fun deleteZoomKeyframe(id: String) {
+        editorHistory.pushState(_editorState.value)
+        val updated = _editorState.value.zoomKeyframes.filter { it.id != id }
+        _editorState.value = _editorState.value.copy(zoomKeyframes = updated)
+        updateUndoRedoFlags()
+        saveCurrentProjectEditorData()
+    }
+
+    fun updateFaceCamTrack(faceCamTrack: FaceCamEditorTrack) {
+        editorHistory.pushState(_editorState.value)
+        _editorState.value = _editorState.value.copy(faceCamTrack = faceCamTrack)
+        updateUndoRedoFlags()
+        saveCurrentProjectEditorData()
+    }
+
+    fun updateAudioConfig(audioConfig: AudioTrackConfig) {
+        editorHistory.pushState(_editorState.value)
+        _editorState.value = _editorState.value.copy(audioConfig = audioConfig)
+        updateUndoRedoFlags()
+        saveCurrentProjectEditorData()
+    }
+
+    fun updateTouchConfig(touchConfig: TouchOverlayConfig) {
+        editorHistory.pushState(_editorState.value)
+        _editorState.value = _editorState.value.copy(touchConfig = touchConfig)
+        updateUndoRedoFlags()
+        saveCurrentProjectEditorData()
+    }
+
+    private fun updateUndoRedoFlags() {
+        _canUndo.value = editorHistory.canUndo
+        _canRedo.value = editorHistory.canRedo
+    }
+
+    fun loadProjectEditorData(project: ProjectEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val srcDurMs = (project.durationSeconds * 1000L).coerceAtLeast(1000L)
+            var loadedState: EditorProjectState? = null
+
+            // 1. Try reading from project.editorDataJson
+            if (!project.editorDataJson.isNullOrBlank()) {
+                loadedState = EditorProjectState.fromJson(project.editorDataJson)
+            }
+
+            // 2. Try reading from companion <video>.flowedit file
+            if (loadedState == null && project.videoPath.isNotBlank()) {
+                try {
+                    val editFile = File(project.videoPath.substringBeforeLast(".") + ".flowedit")
+                    if (editFile.exists() && editFile.length() > 0) {
+                        loadedState = EditorProjectState.fromJson(editFile.readText())
+                    }
+                } catch (_: Exception) {}
+            }
+
+            // 3. Fallback to default
+            val state = loadedState ?: EditorProjectState.createDefault(project.id, srcDurMs)
+
+            // 4. Load .flowtouch companion events if present
+            var touchEvents: List<FlowTouchEvent> = emptyList()
+            if (project.videoPath.isNotBlank()) {
+                val touchFile = if (project.touchMetadataPath != null && File(project.touchMetadataPath).exists()) {
+                    File(project.touchMetadataPath)
+                } else {
+                    File(project.videoPath.substringBeforeLast(".") + ".flowtouch")
+                }
+                if (touchFile.exists()) {
+                    val meta = TouchTracker.Helper.readMetadata(touchFile)
+                    if (meta != null) {
+                        touchEvents = meta.events
                     }
                 }
             }
-        } else {
-            playbackJob?.cancel()
+
+            // 5. Check .flowcam companion file
+            var facecamTrack = state.faceCamTrack
+            if (project.facecamEnabled && !facecamTrack.enabled && project.videoPath.isNotBlank()) {
+                val camFile = if (project.facecamMetadataPath != null && File(project.facecamMetadataPath).exists()) {
+                    File(project.facecamMetadataPath)
+                } else {
+                    File(project.videoPath.substringBeforeLast(".") + ".flowcam")
+                }
+                if (camFile.exists()) {
+                    try {
+                        val txt = camFile.readText()
+                        val shape = txt.substringAfter("\"shape\":\"", "CIRCLE").substringBefore("\"")
+                        val size = txt.substringAfter("\"size\":\"", "MEDIUM").substringBefore("\"")
+                        val szPct = when (size.uppercase()) {
+                            "SMALL" -> 0.18f
+                            "LARGE" -> 0.32f
+                            else -> 0.25f
+                        }
+                        facecamTrack = FaceCamEditorTrack(enabled = true, shape = shape, sizePercent = szPct)
+                    } catch (_: Exception) {}
+                } else {
+                    facecamTrack = FaceCamEditorTrack(enabled = true)
+                }
+            }
+
+            val finalState = state.copy(faceCamTrack = facecamTrack)
+
+            viewModelScope.launch(Dispatchers.Main) {
+                _editorState.value = finalState
+                _loadedTouchEvents.value = touchEvents
+                _activeSegmentId.value = finalState.segments.firstOrNull()?.id
+                editorHistory.clear()
+                updateUndoRedoFlags()
+                _timelinePositionMs.value = 0L
+                _playheadSeconds.value = 0
+            }
+        }
+    }
+
+    fun saveCurrentProjectEditorData() {
+        val proj = _selectedProject.value ?: return
+        val currentState = _editorState.value
+        viewModelScope.launch(Dispatchers.IO) {
+            val json = currentState.toJson()
+
+            // Save to companion .flowedit file
+            if (proj.videoPath.isNotBlank()) {
+                try {
+                    val editFile = File(proj.videoPath.substringBeforeLast(".") + ".flowedit")
+                    editFile.writeText(json)
+                } catch (e: Exception) {
+                    Log.w("FlowRecViewModel", "Error saving .flowedit companion file: ${e.message}")
+                }
+            }
+
+            // Save into Room Database
+            val updated = proj.copy(
+                editorDataJson = json,
+                durationSeconds = (currentState.effectiveDurationMs / 1000L).toInt().coerceAtLeast(1)
+            )
+            dao.updateProject(updated)
+            _selectedProject.value = updated
         }
     }
 
@@ -484,16 +939,83 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
         _touchFeedbackColor.value = color
     }
 
+    fun setTouchRippleEnabled(enabled: Boolean) {
+        _touchRippleEnabled.value = enabled
+        prefs.edit().putBoolean("touch_ripple", enabled).apply()
+        syncRecorderConfig()
+    }
+
+    fun setTouchHighlightEnabled(enabled: Boolean) {
+        _touchHighlightEnabled.value = enabled
+        prefs.edit().putBoolean("touch_highlight", enabled).apply()
+        syncRecorderConfig()
+    }
+
+    fun setTouchMovementTrackingEnabled(enabled: Boolean) {
+        _touchMovementTrackingEnabled.value = enabled
+        prefs.edit().putBoolean("touch_movement", enabled).apply()
+        syncRecorderConfig()
+    }
+
+    fun setTouchEffectSizeDp(sizeDp: Int) {
+        _touchEffectSizeDp.value = sizeDp
+        prefs.edit().putInt("touch_size_dp", sizeDp).apply()
+        syncRecorderConfig()
+    }
+
+    fun setTouchEffectDurationMs(durationMs: Int) {
+        _touchEffectDurationMs.value = durationMs
+        prefs.edit().putInt("touch_duration_ms", durationMs).apply()
+        syncRecorderConfig()
+    }
+
+    fun setTouchEffectOpacity(opacity: Float) {
+        _touchEffectOpacity.value = opacity
+        prefs.edit().putFloat("touch_opacity", opacity).apply()
+        syncRecorderConfig()
+    }
+
+    fun getTouchEffectConfig(): TouchEffectConfig {
+        return TouchEffectConfig(
+            enabled = _showTouches.value,
+            rippleEnabled = _touchRippleEnabled.value,
+            highlightEnabled = _touchHighlightEnabled.value,
+            movementTrackingEnabled = _touchMovementTrackingEnabled.value,
+            sizeDp = _touchEffectSizeDp.value,
+            durationMs = _touchEffectDurationMs.value,
+            opacity = _touchEffectOpacity.value,
+            colorHex = _touchFeedbackColor.value
+        )
+    }
+
     fun setFacecamEnabled(enabled: Boolean) {
         _facecamEnabled.value = enabled
+        prefs.edit().putBoolean("facecam_enabled", enabled).apply()
+        syncRecorderConfig()
     }
 
     fun setFacecamShape(shape: String) {
         _facecamShape.value = shape
+        prefs.edit().putString("facecam_shape", shape).apply()
+        syncRecorderConfig()
     }
 
     fun setFacecamSize(size: String) {
         _facecamSize.value = size
+        prefs.edit().putString("facecam_size", size).apply()
+        syncRecorderConfig()
+    }
+
+    fun setFacecamFrontLens(isFront: Boolean) {
+        _facecamFrontLens.value = isFront
+        prefs.edit().putBoolean("facecam_front_lens", isFront).apply()
+        syncRecorderConfig()
+    }
+
+    fun resetFacecamPosition() {
+        try {
+            com.example.recorder.camera.FloatingFacecamManager.getInstance(getApplication()).resetPosition()
+        } catch (_: Exception) {}
     }
 
     fun setBrushEnabled(enabled: Boolean) {
@@ -683,9 +1205,51 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
 
     fun duplicateProject(project: ProjectEntity) {
         viewModelScope.launch(Dispatchers.IO) {
+            val duplicateId = UUID.randomUUID().toString()
+            var dupVideoPath = project.videoPath
+            var dupTouchPath = project.touchMetadataPath
+            var dupCamPath = project.facecamMetadataPath
+
+            try {
+                if (project.videoPath.isNotBlank()) {
+                    val origFile = File(project.videoPath)
+                    if (origFile.exists()) {
+                        val dupFile = File(origFile.parentFile, "rec_${duplicateId}.mp4")
+                        origFile.copyTo(dupFile, overwrite = true)
+                        dupVideoPath = dupFile.absolutePath
+
+                        val origTouch = File(project.videoPath.substringBeforeLast(".") + ".flowtouch")
+                        if (origTouch.exists()) {
+                            val dupTouch = File(origFile.parentFile, "rec_${duplicateId}.flowtouch")
+                            origTouch.copyTo(dupTouch, overwrite = true)
+                            dupTouchPath = dupTouch.absolutePath
+                        }
+
+                        val origCam = File(project.videoPath.substringBeforeLast(".") + ".flowcam")
+                        if (origCam.exists()) {
+                            val dupCam = File(origFile.parentFile, "rec_${duplicateId}.flowcam")
+                            origCam.copyTo(dupCam, overwrite = true)
+                            dupCamPath = dupCam.absolutePath
+                        }
+
+                        val origEdit = File(project.videoPath.substringBeforeLast(".") + ".flowedit")
+                        if (origEdit.exists()) {
+                            val dupEdit = File(origFile.parentFile, "rec_${duplicateId}.flowedit")
+                            origEdit.copyTo(dupEdit, overwrite = true)
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w("FlowRecViewModel", "Error duplicating files: ${e.message}")
+            }
+
             val duplicate = project.copy(
-                id = UUID.randomUUID().toString(),
+                id = duplicateId,
                 name = "${project.name} (Copy)",
+                videoPath = dupVideoPath,
+                touchMetadataPath = dupTouchPath,
+                facecamMetadataPath = dupCamPath,
+                editorDataJson = project.editorDataJson,
                 createdAt = System.currentTimeMillis()
             )
             dao.insertProject(duplicate)
@@ -694,6 +1258,31 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
 
     fun deleteProject(project: ProjectEntity) {
         viewModelScope.launch(Dispatchers.IO) {
+            try {
+                if (project.videoPath.isNotBlank()) {
+                    val vidFile = File(project.videoPath)
+                    if (vidFile.exists()) vidFile.delete()
+
+                    val touchFile = File(project.videoPath.substringBeforeLast(".") + ".flowtouch")
+                    if (touchFile.exists()) touchFile.delete()
+
+                    val camFile = File(project.videoPath.substringBeforeLast(".") + ".flowcam")
+                    if (camFile.exists()) camFile.delete()
+
+                    val editFile = File(project.videoPath.substringBeforeLast(".") + ".flowedit")
+                    if (editFile.exists()) editFile.delete()
+                }
+                if (project.touchMetadataPath != null) {
+                    val tf = File(project.touchMetadataPath)
+                    if (tf.exists()) tf.delete()
+                }
+                if (project.thumbnailResName.startsWith("/")) {
+                    val thumbFile = File(project.thumbnailResName)
+                    if (thumbFile.exists()) thumbFile.delete()
+                }
+            } catch (e: Exception) {
+                Log.w("FlowRecViewModel", "Error deleting companion files: ${e.message}")
+            }
             dao.deleteProject(project)
             if (_selectedProject.value?.id == project.id) {
                 _selectedProject.value = null
@@ -701,6 +1290,80 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
         }
         if (_selectedProject.value?.id == project.id) {
             navigateBack()
+        }
+    }
+
+    fun openProjectById(id: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val proj = dao.getProjectById(id)
+            if (proj != null) {
+                viewModelScope.launch(Dispatchers.Main) {
+                    openEditorForProject(proj)
+                }
+            }
+        }
+    }
+
+    fun stopRecording() {
+        recorderEngine.stopRecording()
+    }
+
+    private suspend fun scanAndRecoverOrphanedRecordings() {
+        try {
+            val recordingsDir = File(getApplication<Application>().filesDir, "recordings")
+            if (!recordingsDir.exists()) return
+            val files = recordingsDir.listFiles { f -> f.extension == "mp4" && f.length() > 0 } ?: return
+            val existingProjects = dao.getAllProjects()
+            val existingPaths = existingProjects.map { it.videoPath }.toSet()
+
+            for (file in files) {
+                if (!existingPaths.contains(file.absolutePath)) {
+                    var durationSec = 1
+                    var thumbPath = "thumb_mountain"
+                    try {
+                        val retriever = MediaMetadataRetriever()
+                        retriever.setDataSource(file.absolutePath)
+                        val durMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+                        if (durMs > 500) {
+                            durationSec = (durMs / 1000L).toInt().coerceAtLeast(1)
+                        }
+                        val frame = retriever.getFrameAtTime(500_000) ?: retriever.getFrameAtTime(0)
+                        if (frame != null) {
+                            val thumbsDir = File(getApplication<Application>().filesDir, "thumbnails")
+                            thumbsDir.mkdirs()
+                            val thumbFile = File(thumbsDir, "thumb_${file.nameWithoutExtension}.png")
+                            val fos = FileOutputStream(thumbFile)
+                            frame.compress(Bitmap.CompressFormat.PNG, 90, fos)
+                            fos.flush()
+                            fos.close()
+                            thumbPath = thumbFile.absolutePath
+                        }
+                        retriever.release()
+                    } catch (e: Exception) {
+                        Log.w("FlowRecViewModel", "Recover metadata error: ${e.message}")
+                    }
+
+                    val recoveredProject = ProjectEntity(
+                        id = UUID.randomUUID().toString(),
+                        name = "Screen Recording",
+                        durationSeconds = durationSec,
+                        resolution = "1080p",
+                        fps = 30,
+                        fileSizeBytes = file.length(),
+                        thumbnailResName = thumbPath,
+                        videoPath = file.absolutePath,
+                        createdAt = file.lastModified(),
+                        isFavorite = false,
+                        isExported = false,
+                        cursorEnabled = true,
+                        clickZoomEnabled = true
+                    )
+                    dao.insertProject(recoveredProject)
+                    Log.i("FlowRecViewModel", "Recovered orphaned recording: ${file.name}")
+                }
+            }
+        } catch (e: Exception) {
+            Log.w("FlowRecViewModel", "Error recovering recordings: ${e.message}")
         }
     }
 

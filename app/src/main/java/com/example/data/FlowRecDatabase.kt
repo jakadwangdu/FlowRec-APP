@@ -12,7 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.util.UUID
 
-@Database(entities = [ProjectEntity::class], version = 2, exportSchema = false)
+@Database(entities = [ProjectEntity::class], version = 4, exportSchema = false)
 abstract class FlowRecDatabase : RoomDatabase() {
     abstract fun projectDao(): ProjectDao
 
@@ -20,7 +20,7 @@ abstract class FlowRecDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: FlowRecDatabase? = null
 
-        fun getDatabase(context: Context, scope: CoroutineScope): FlowRecDatabase {
+        fun getDatabase(context: Context): FlowRecDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
@@ -32,6 +32,10 @@ abstract class FlowRecDatabase : RoomDatabase() {
                 INSTANCE = instance
                 instance
             }
+        }
+
+        fun getDatabase(context: Context, scope: CoroutineScope): FlowRecDatabase {
+            return getDatabase(context)
         }
 
         suspend fun prepopulateProjects(dao: ProjectDao) {

@@ -59,6 +59,8 @@ fun CountdownScreen(
     }
 
     val countdown by viewModel.recorderEngine.countdown.collectAsState()
+    val countdownOption by viewModel.countdownOption.collectAsState()
+    val totalSeconds = countdownOption.seconds.coerceAtLeast(1)
 
     LaunchedEffect(Unit) {
         viewModel.recorderEngine.startCountdown {
@@ -66,10 +68,10 @@ fun CountdownScreen(
         }
     }
 
-    val targetProgress = (4 - countdown) / 3f
+    val targetProgress = ((totalSeconds + 1 - countdown).toFloat() / totalSeconds.toFloat()).coerceIn(0f, 1f)
     val animatedProgress by animateFloatAsState(
         targetValue = targetProgress,
-        animationSpec = tween(durationMillis = 900, easing = FastOutSlowInEasing),
+        animationSpec = tween(durationMillis = 850, easing = FastOutSlowInEasing),
         label = "countdown_progress"
     )
 
@@ -130,18 +132,19 @@ fun CountdownScreen(
                     )
                 }
 
-                // Countdown Digit with Smooth Transition
+                // Countdown Digit with Clean Instant Transition (No double-digit ghosting)
                 AnimatedContent(
                     targetState = countdown,
                     transitionSpec = {
-                        (scaleIn(initialScale = 0.6f) + fadeIn()) togetherWith (scaleOut(targetScale = 1.3f) + fadeOut())
+                        (fadeIn(animationSpec = tween(150)) + scaleIn(initialScale = 0.82f, animationSpec = tween(150)))
+                            .togetherWith(fadeOut(animationSpec = tween(120)) + scaleOut(targetScale = 1.18f, animationSpec = tween(120)))
                     },
                     label = "countdown_digit"
                 ) { count ->
                     Text(
                         text = if (count > 0) "$count" else "REC",
                         style = MaterialTheme.typography.displayLarge.copy(
-                            fontSize = if (count > 0) 54.sp else 36.sp,
+                            fontSize = if (count > 0) 58.sp else 36.sp,
                             fontWeight = FontWeight.Bold
                         ),
                         color = if (count > 0) Color.White else AccentRed

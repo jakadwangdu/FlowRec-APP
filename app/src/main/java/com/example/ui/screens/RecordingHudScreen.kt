@@ -260,10 +260,8 @@ fun RecordingHudScreen(
                                 .clip(CircleShape)
                                 .background(AccentRed)
                                 .clickable {
-                                    viewModel.recorderEngine.stopRecording("Screen Recording") { newProject ->
-                                        viewModel.onRecordingFinished(newProject)
-                                        onRecordingComplete()
-                                    }
+                                    viewModel.stopRecording()
+                                    onRecordingComplete()
                                 },
                             contentAlignment = Alignment.Center
                         ) {

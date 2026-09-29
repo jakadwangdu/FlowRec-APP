@@ -63,6 +63,11 @@ import com.example.ui.components.WaveformCanvas
 import com.example.ui.components.formatSeconds
 import com.example.ui.viewmodel.FlowRecViewModel
 
+import androidx.compose.material.icons.filled.Redo
+import androidx.compose.material.icons.filled.Undo
+import androidx.compose.runtime.LaunchedEffect
+import com.example.ui.navigation.Screen
+
 @Composable
 fun TimelineScreen(
     viewModel: FlowRecViewModel,
@@ -73,12 +78,20 @@ fun TimelineScreen(
     BackHandler { onBackClick() }
 
     val context = LocalContext.current
-    val playheadSec by viewModel.playheadSeconds.collectAsState()
+    LaunchedEffect(project.id) {
+        viewModel.loadProjectEditorData(project)
+    }
+
+    val editorState by viewModel.editorState.collectAsState()
+    val timelinePosMs by viewModel.timelinePositionMs.collectAsState()
     val isPlaying by viewModel.isPlaying.collectAsState()
     val cursorEnabled by viewModel.cursorEnabled.collectAsState()
-    val currentFormatted = formatSeconds(playheadSec)
-    val totalFormatted = formatSeconds(project.durationSeconds)
+    val canUndo by viewModel.canUndo.collectAsState()
+    val canRedo by viewModel.canRedo.collectAsState()
+    val activeSegId by viewModel.activeSegmentId.collectAsState()
 
+    val currentFormatted = formatSeconds((timelinePosMs / 1000).toInt())
+    val totalFormatted = formatSeconds((editorState.effectiveDurationMs / 1000).toInt().coerceAtLeast(1))
 
     Scaffold(
         topBar = {
@@ -86,11 +99,27 @@ fun TimelineScreen(
                 title = "Timeline",
                 onBackClick = onBackClick,
                 actions = {
-                    IconButton(onClick = { /* Search */ }, modifier = Modifier.size(40.dp)) {
-                        Icon(Icons.Filled.Search, contentDescription = "Search", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    IconButton(
+                        onClick = { viewModel.undo() },
+                        enabled = canUndo,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            Icons.Filled.Undo,
+                            contentDescription = "Undo",
+                            tint = if (canUndo) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                        )
                     }
-                    IconButton(onClick = { /* Settings */ }, modifier = Modifier.size(40.dp)) {
-                        Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    IconButton(
+                        onClick = { viewModel.redo() },
+                        enabled = canRedo,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            Icons.Filled.Redo,
+                            contentDescription = "Redo",
+                            tint = if (canRedo) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                        )
                     }
                 }
             )
@@ -113,24 +142,27 @@ fun TimelineScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     TimelineActionButton(
-                        label = "Add Marker",
+                        label = "Add Zoom",
                         icon = Icons.Filled.AddCircleOutline,
-                        onClick = { /* Add keyframe */ }
+                        onClick = { viewModel.addZoomKeyframe(timeMs = timelinePosMs) }
                     )
                     TimelineActionButton(
                         label = "Split",
                         icon = Icons.Filled.ContentCut,
-                        onClick = { /* Split video clip */ }
+                        onClick = { viewModel.splitAtPlayhead() }
                     )
                     TimelineActionButton(
                         label = "Delete",
                         icon = Icons.Filled.Delete,
-                        onClick = { /* Delete track item */ }
+                        onClick = {
+                            val segId = activeSegId ?: editorState.segments.firstOrNull { !it.isDeleted }?.id
+                            segId?.let { viewModel.deleteSegment(it) }
+                        }
                     )
                     TimelineActionButton(
-                        label = "More",
+                        label = "Full Editor",
                         icon = Icons.Filled.MoreHoriz,
-                        onClick = { /* More actions */ }
+                        onClick = { viewModel.openEditorForProject(project) }
                     )
                 }
             }
@@ -237,9 +269,9 @@ fun TimelineScreen(
                 }
 
                 WaveformCanvas(
-                    durationSeconds = project.durationSeconds,
-                    playheadSeconds = playheadSec,
-                    onSeek = { viewModel.setPlayheadSeconds(it) },
+                    durationSeconds = (editorState.effectiveDurationMs / 1000).toInt().coerceAtLeast(1),
+                    playheadSeconds = (timelinePosMs / 1000).toInt(),
+                    onSeek = { viewModel.setTimelinePosition(it * 1000L) },
                     cursorTrackEnabled = cursorEnabled,
                     zoomTrackEnabled = true,
                     effectsTrackEnabled = true,

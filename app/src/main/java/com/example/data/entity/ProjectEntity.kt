@@ -28,5 +28,11 @@ data class ProjectEntity(
     val zoomEasing: String = "SMOOTH",
     val motionBlurEnabled: Boolean = true,
     val blurAmountPercent: Int = 18,
-    val transition: String = "Smooth"
+    val transition: String = "Smooth",
+    // Phase 2: Touch Tracking and FaceCam companion metadata
+    val touchMetadataPath: String? = null,
+    val facecamEnabled: Boolean = false,
+    val facecamMetadataPath: String? = null,
+    // Phase 3: Non-destructive Editor State persistence
+    val editorDataJson: String? = null
 )

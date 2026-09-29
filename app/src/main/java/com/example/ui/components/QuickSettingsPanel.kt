@@ -251,9 +251,10 @@ fun QuickSettingsPanel(
                                 isActive = audioSourceMode != AudioSourceMode.NONE,
                                 onClick = {
                                     val next = when (audioSourceMode) {
-                                        AudioSourceMode.MIC_AND_SYSTEM -> AudioSourceMode.SYSTEM
-                                        AudioSourceMode.SYSTEM -> AudioSourceMode.NONE
-                                        AudioSourceMode.NONE -> AudioSourceMode.MIC_AND_SYSTEM
+                                        AudioSourceMode.MIC_AND_INTERNAL -> AudioSourceMode.INTERNAL
+                                        AudioSourceMode.INTERNAL -> AudioSourceMode.MIC
+                                        AudioSourceMode.MIC -> AudioSourceMode.NONE
+                                        AudioSourceMode.NONE -> AudioSourceMode.MIC_AND_INTERNAL
                                     }
                                     viewModel.setAudioSourceMode(next)
                                 }
@@ -446,19 +447,24 @@ fun QuickSettingsPanel(
 
                         // Audio Radio Options
                         AudioOptionRadio(
-                            label = "None",
+                            label = "None (Mute)",
                             selected = selectedAudioMode == AudioSourceMode.NONE,
                             onClick = { selectedAudioMode = AudioSourceMode.NONE }
                         )
                         AudioOptionRadio(
-                            label = "Media sounds",
-                            selected = selectedAudioMode == AudioSourceMode.SYSTEM,
-                            onClick = { selectedAudioMode = AudioSourceMode.SYSTEM }
+                            label = "Microphone",
+                            selected = selectedAudioMode == AudioSourceMode.MIC,
+                            onClick = { selectedAudioMode = AudioSourceMode.MIC }
+                        )
+                        AudioOptionRadio(
+                            label = "Media sounds (Internal)",
+                            selected = selectedAudioMode == AudioSourceMode.INTERNAL,
+                            onClick = { selectedAudioMode = AudioSourceMode.INTERNAL }
                         )
                         AudioOptionRadio(
                             label = "Media sounds and mic",
-                            selected = selectedAudioMode == AudioSourceMode.MIC_AND_SYSTEM,
-                            onClick = { selectedAudioMode = AudioSourceMode.MIC_AND_SYSTEM }
+                            selected = selectedAudioMode == AudioSourceMode.MIC_AND_INTERNAL,
+                            onClick = { selectedAudioMode = AudioSourceMode.MIC_AND_INTERNAL }
                         )
 
                         Spacer(modifier = Modifier.height(14.dp))

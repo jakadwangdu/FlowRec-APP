@@ -62,6 +62,8 @@ class FloatingOverlayManager(private val context: Context) {
     private var isPaused = false
     private var currentSeconds = 0
 
+    var onTouchEventListener: ((MotionEvent) -> Unit)? = null
+
     private val handler = Handler(Looper.getMainLooper())
 
     fun show() {
@@ -179,6 +181,7 @@ class FloatingOverlayManager(private val context: Context) {
             var isDragging = false
 
             circle.setOnTouchListener { _, event ->
+                onTouchEventListener?.invoke(event)
                 val currentParams = windowParams ?: return@setOnTouchListener false
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
@@ -240,13 +243,13 @@ class FloatingOverlayManager(private val context: Context) {
     }
 
     private fun buildCollapsedCircle(): FrameLayout {
-        val size = dpToPx(56)
+        val size = dpToPx(58)
         return FrameLayout(context).apply {
             layoutParams = FrameLayout.LayoutParams(size, size)
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#E6141418"))
-                setStroke(dpToPx(1.5f), Color.parseColor("#FF3D3D48"))
+                setColor(Color.parseColor("#EE141418"))
+                setStroke(dpToPx(1.5f), Color.parseColor("#55FFFFFF"))
             }
             elevation = dpToPx(12).toFloat()
 
@@ -258,8 +261,11 @@ class FloatingOverlayManager(private val context: Context) {
 
             // Pulsing dot
             val dot = View(context).apply {
-                val dotSize = dpToPx(10)
-                layoutParams = LinearLayout.LayoutParams(dotSize, dotSize)
+                val dotSize = dpToPx(8)
+                val lp = LinearLayout.LayoutParams(dotSize, dotSize).apply {
+                    bottomMargin = dpToPx(2)
+                }
+                layoutParams = lp
                 background = createCircleDrawable(Color.parseColor("#FF3B30"))
             }
             recDot = dot
@@ -268,10 +274,10 @@ class FloatingOverlayManager(private val context: Context) {
             val timer = TextView(context).apply {
                 text = formatSeconds(currentSeconds)
                 setTextColor(Color.WHITE)
-                textSize = 10f
+                textSize = 11f
                 gravity = Gravity.CENTER
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
-                setPadding(0, dpToPx(2), 0, 0)
+                includeFontPadding = false
             }
             timerTextCollapsed = timer
 
@@ -370,9 +376,9 @@ class FloatingOverlayManager(private val context: Context) {
                 isClickable = true
                 setOnClickListener {
                     ScreenRecorderService.stopRecording(context)
-                    // Launch MainActivity to show finished video
+                    // Launch MainActivity safely without destroying it
                     val launchIntent = Intent(context, MainActivity::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
                     }
                     context.startActivity(launchIntent)
                     collapseControls()
@@ -477,14 +483,14 @@ class FloatingOverlayManager(private val context: Context) {
         preExpandX = currentParams.x
 
         val screenWidth = getScreenWidth()
-        val pillEstimatedWidth = dpToPx(285)
+        val pillEstimatedWidth = dpToPx(270)
 
-        // Shift window to the left so that the entire pill is within screen bounds
-        if (currentParams.x + pillEstimatedWidth > screenWidth - dpToPx(12)) {
-            currentParams.x = screenWidth - pillEstimatedWidth - dpToPx(12)
+        // Shift window so that the entire pill is within screen bounds
+        if (currentParams.x + pillEstimatedWidth > screenWidth - dpToPx(10)) {
+            currentParams.x = (screenWidth - pillEstimatedWidth - dpToPx(10)).coerceAtLeast(dpToPx(10))
         }
-        if (currentParams.x < dpToPx(12)) {
-            currentParams.x = dpToPx(12)
+        if (currentParams.x < dpToPx(10)) {
+            currentParams.x = dpToPx(10)
         }
 
         try {

@@ -67,12 +67,23 @@ class MainActivity : ComponentActivity() {
     private val viewModel: FlowRecViewModel by viewModels()
     private var pendingQuickRecord = false
 
+    override fun dispatchTouchEvent(ev: android.view.MotionEvent?): Boolean {
+        if (ev != null && com.example.service.ScreenRecorderService.isRunning) {
+            com.example.service.ScreenRecorderService.activeTouchTracker?.recordMotionEvent(ev)
+        }
+        return super.dispatchTouchEvent(ev)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
         if (intent?.getBooleanExtra("action_quick_record", false) == true) {
             pendingQuickRecord = true
+        }
+        val openProjectId = intent?.getStringExtra("open_project_id")
+        if (!openProjectId.isNullOrBlank()) {
+            viewModel.openProjectById(openProjectId)
         }
 
         setContent {
@@ -103,6 +114,10 @@ class MainActivity : ComponentActivity() {
         if (intent.getBooleanExtra("action_quick_record", false)) {
             pendingQuickRecord = true
         }
+        val openProjectId = intent.getStringExtra("open_project_id")
+        if (!openProjectId.isNullOrBlank()) {
+            viewModel.openProjectById(openProjectId)
+        }
     }
 
     fun checkAndConsumeQuickRecord(): Boolean {
@@ -122,10 +137,14 @@ fun FlowRecApp(
     val selectedProject by viewModel.selectedProject.collectAsState()
 
     DisposableEffect(Unit) {
+        viewModel.recorderEngine.onProjectIdSavedListener = { projectId ->
+            viewModel.openProjectById(projectId)
+        }
         viewModel.recorderEngine.onExternalStopListener = { project ->
             viewModel.onRecordingFinished(project)
         }
         onDispose {
+            viewModel.recorderEngine.onProjectIdSavedListener = null
             viewModel.recorderEngine.onExternalStopListener = null
         }
     }
@@ -148,7 +167,13 @@ fun FlowRecApp(
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK && result.data != null) {
             viewModel.recorderEngine.setProjectionPermission(result.resultCode, result.data)
-            viewModel.navigateTo(Screen.COUNTDOWN)
+            if (viewModel.countdownOption.value == com.example.model.CountdownOption.OFF) {
+                viewModel.recorderEngine.startRecording()
+                viewModel.navigateTo(Screen.RECORDING_HUD)
+                activity.moveTaskToBack(true)
+            } else {
+                viewModel.navigateTo(Screen.COUNTDOWN)
+            }
         } else {
             Toast.makeText(activity, "Screen recording permission was not granted", Toast.LENGTH_SHORT).show()
         }
@@ -255,9 +280,9 @@ fun FlowRecApp(
                 HomeScreen(
                     viewModel = viewModel,
                     projects = projects,
-                    onNewRecordingClick = { checkAndStartCapture() },
-                    onViewAllClick = { viewModel.switchBottomTab(Screen.LIBRARY) },
-                    onSettingsClick = { viewModel.navigateTo(Screen.SETTINGS) },
+                    onNewRecordingClick = { viewModel.switchBottomTab(Screen.RECORD) },
+                    onViewAllClick = { viewModel.switchBottomTab(Screen.PROJECTS) },
+                    onSettingsClick = { viewModel.switchBottomTab(Screen.SETTINGS) },
                     onAddQuickTileClick = {
                         FlowRecTileService.requestAddToQuickSettings(activity) { result ->
                             if (result == StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ADDED) {
@@ -270,20 +295,29 @@ fun FlowRecApp(
                 )
             }
 
-            Screen.NEW_RECORDING -> {
-                NewRecordingScreen(
+            Screen.RECORD, Screen.NEW_RECORDING -> {
+                RecordScreen(
                     viewModel = viewModel,
-                    onBackClick = { viewModel.navigateBack() },
-                    onNextClick = { requestScreenCaptureAndStart() }
+                    onStartRecordingClick = { checkAndStartCapture() },
+                    onBackClick = { viewModel.navigateBack() }
                 )
             }
 
-
-            Screen.SCREEN_SELECTION -> {
-                ScreenSelectionScreen(
+            Screen.PROJECTS, Screen.LIBRARY -> {
+                ProjectsScreen(
                     viewModel = viewModel,
+                    projects = projects
+                )
+            }
+
+            Screen.EDITOR -> {
+                EditorScreen(
+                    viewModel = viewModel,
+                    project = selectedProject,
                     onBackClick = { viewModel.navigateBack() },
-                    onNextClick = { requestScreenCaptureAndStart() }
+                    onExportClick = { viewModel.navigateTo(Screen.EXPORT_SETTINGS) },
+                    onOpenEffects = { viewModel.navigateTo(Screen.EFFECTS) },
+                    onOpenTimeline = { viewModel.navigateTo(Screen.TIMELINE) }
                 )
             }
 
@@ -306,13 +340,6 @@ fun FlowRecApp(
                 )
             }
 
-            Screen.LIBRARY -> {
-                LibraryScreen(
-                    viewModel = viewModel,
-                    projects = projects
-                )
-            }
-
             Screen.PROJECT_DETAILS -> {
                 selectedProject?.let { proj ->
                     ProjectDetailsScreen(
@@ -321,31 +348,16 @@ fun FlowRecApp(
                         onBackClick = { viewModel.navigateBack() },
                         onEditClick = { viewModel.openEditorForProject(proj) }
                     )
-                } ?: HomeScreen(
-                    viewModel = viewModel,
-                    projects = projects,
-                    onNewRecordingClick = { viewModel.navigateTo(Screen.NEW_RECORDING) },
-                    onViewAllClick = { viewModel.switchBottomTab(Screen.LIBRARY) },
-                    onSettingsClick = { viewModel.navigateTo(Screen.SETTINGS) }
-                )
+                } ?: run {
+                    viewModel.switchBottomTab(Screen.PROJECTS)
+                }
             }
 
-            Screen.EDITOR -> {
-                selectedProject?.let { proj ->
-                    EditorScreen(
-                        viewModel = viewModel,
-                        project = proj,
-                        onBackClick = { viewModel.navigateBack() },
-                        onExportClick = { viewModel.navigateTo(Screen.EXPORT_SETTINGS) },
-                        onOpenEffects = { viewModel.navigateTo(Screen.EFFECTS) },
-                        onOpenTimeline = { viewModel.navigateTo(Screen.TIMELINE) }
-                    )
-                } ?: HomeScreen(
+            Screen.SCREEN_SELECTION -> {
+                ScreenSelectionScreen(
                     viewModel = viewModel,
-                    projects = projects,
-                    onNewRecordingClick = { viewModel.navigateTo(Screen.NEW_RECORDING) },
-                    onViewAllClick = { viewModel.switchBottomTab(Screen.LIBRARY) },
-                    onSettingsClick = { viewModel.navigateTo(Screen.SETTINGS) }
+                    onBackClick = { viewModel.navigateBack() },
+                    onNextClick = { requestScreenCaptureAndStart() }
                 )
             }
 
@@ -388,11 +400,11 @@ fun FlowRecApp(
                         if (proj != null) {
                             viewModel.openProject(proj)
                         } else {
-                            viewModel.switchBottomTab(Screen.LIBRARY)
+                            viewModel.switchBottomTab(Screen.PROJECTS)
                         }
                     },
                     onViewInLibrary = {
-                        viewModel.switchBottomTab(Screen.LIBRARY)
+                        viewModel.switchBottomTab(Screen.PROJECTS)
                     }
                 )
             }
