@@ -144,19 +144,23 @@ class FlowRecPhase7ReleaseTest {
     @Test
     fun testTouchEventsSerializationPreservesCoordinates() {
         val event = FlowTouchEvent(
-            timeMs = 1250L,
+            timestampMs = 1250L,
+            x = 453.6f,
+            y = 1632.0f,
+            action = "DOWN",
+            pointerId = 0,
             normalizedX = 0.42f,
             normalizedY = 0.68f,
-            action = 0, // ACTION_DOWN
-            pointerCount = 1,
             pressure = 1.0f
         )
 
-        val csvLine = event.toCsvLine()
-        val parsed = FlowTouchEvent.fromCsvLine(csvLine)
+        val json = event.toJson()
+        val parsed = FlowTouchEvent.fromJson(json)
 
         assertNotNull(parsed)
-        assertEquals(event.timeMs, parsed!!.timeMs)
+        assertEquals(event.timestampMs, parsed!!.timestampMs)
+        assertEquals(event.x, parsed.x, 0.01f)
+        assertEquals(event.y, parsed.y, 0.01f)
         assertEquals(event.normalizedX, parsed.normalizedX, 0.001f)
         assertEquals(event.normalizedY, parsed.normalizedY, 0.001f)
         assertEquals(event.action, parsed.action)
