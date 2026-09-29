@@ -165,7 +165,7 @@ data class AiSuggestion(
                     scale = zObj.optDouble("scale", 1.6).toFloat(),
                     focalXPercent = zObj.optDouble("focalXPercent", 0.5).toFloat(),
                     focalYPercent = zObj.optDouble("focalYPercent", 0.5).toFloat(),
-                    durationMs = zObj.optInt("durationMs", 800)
+                    durationMs = zObj.optLong("durationMs", 800L)
                 )
             }
             var to: TextOverlay? = null
@@ -178,7 +178,7 @@ data class AiSuggestion(
                     endTimeMs = tObj.optLong("endTimeMs", 3000L),
                     xPercent = tObj.optDouble("xPercent", 0.5).toFloat(),
                     yPercent = tObj.optDouble("yPercent", 0.85).toFloat(),
-                    fontSizeSp = tObj.optInt("fontSizeSp", 18),
+                    fontSizeSp = tObj.optDouble("fontSizeSp", 18.0).toFloat(),
                     textColorHex = tObj.optString("textColorHex", "#FFFFFF"),
                     backgroundColorHex = tObj.optString("backgroundColorHex", "#B0000000")
                 )

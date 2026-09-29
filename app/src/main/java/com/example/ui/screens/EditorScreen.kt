@@ -112,7 +112,6 @@ import com.example.ui.theme.AccentBlue
 import com.example.ui.theme.AccentRed
 import com.example.ui.viewmodel.FlowRecViewModel
 import com.example.ui.viewmodel.Screen
-import androidx.compose.material.icons.filled.AutoAwesome
 import java.io.File
 import java.util.UUID
 
