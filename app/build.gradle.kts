@@ -23,16 +23,21 @@ android {
   }
 
   signingConfigs {
-    val storeFilePath = System.getenv("SIGNING_STORE_FILE") ?: System.getenv("KEYSTORE_PATH")
-    val storePasswordEnv = System.getenv("SIGNING_STORE_PASSWORD") ?: System.getenv("STORE_PASSWORD")
-    val keyAliasEnv = System.getenv("SIGNING_KEY_ALIAS") ?: "upload"
-    val keyPasswordEnv = System.getenv("SIGNING_KEY_PASSWORD") ?: System.getenv("KEY_PASSWORD")
+    val storeFilePath = System.getenv("SIGNING_STORE_FILE")?.trim()?.takeIf { it.isNotEmpty() }
+      ?: System.getenv("KEYSTORE_PATH")?.trim()?.takeIf { it.isNotEmpty() }
+    val storePasswordEnv = System.getenv("SIGNING_STORE_PASSWORD")?.trim()?.takeIf { it.isNotEmpty() }
+      ?: System.getenv("STORE_PASSWORD")?.trim()?.takeIf { it.isNotEmpty() }
+    val keyAliasEnv = System.getenv("SIGNING_KEY_ALIAS")?.trim()?.takeIf { it.isNotEmpty() } ?: "upload"
+    val keyPasswordEnv = System.getenv("SIGNING_KEY_PASSWORD")?.trim()?.takeIf { it.isNotEmpty() }
+      ?: System.getenv("KEY_PASSWORD")?.trim()?.takeIf { it.isNotEmpty() }
 
-    val hasReleaseSigning = storeFilePath != null && file(storeFilePath).exists() && !storePasswordEnv.isNullOrBlank()
+    val hasReleaseSigning = !storeFilePath.isNullOrEmpty() &&
+            file(storeFilePath).run { exists() && isFile } &&
+            !storePasswordEnv.isNullOrEmpty()
 
     create("release") {
-      if (hasReleaseSigning) {
-        storeFile = file(storeFilePath!!)
+      if (hasReleaseSigning && storeFilePath != null) {
+        storeFile = file(storeFilePath)
         storePassword = storePasswordEnv
         keyAlias = keyAliasEnv
         keyPassword = keyPasswordEnv
@@ -53,11 +58,11 @@ android {
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
 
       val releaseConfig = signingConfigs.getByName("release")
-      if (releaseConfig.storeFile != null && releaseConfig.storeFile!!.exists()) {
+      if (releaseConfig.storeFile != null && releaseConfig.storeFile!!.exists() && releaseConfig.storeFile!!.isFile) {
         signingConfig = releaseConfig
       } else {
         val debugKeystore = file("${rootDir}/debug.keystore")
-        if (debugKeystore.exists()) {
+        if (debugKeystore.exists() && debugKeystore.isFile) {
           signingConfig = signingConfigs.getByName("debugConfig")
         }
       }
