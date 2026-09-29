@@ -29,21 +29,20 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Redo
-import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Animation
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BlurOn
-import androidx.compose.material.icons.filled.CallSplit
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.IosShare
+import androidx.compose.material.icons.filled.Redo
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Speed
@@ -312,7 +311,7 @@ fun EditorScreen(
                             modifier = Modifier.size(36.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Undo,
+                                imageVector = Icons.Filled.Undo,
                                 contentDescription = "Undo",
                                 tint = if (canUndo) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
                                 modifier = Modifier.size(20.dp)
@@ -326,7 +325,7 @@ fun EditorScreen(
                             modifier = Modifier.size(36.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Redo,
+                                imageVector = Icons.Filled.Redo,
                                 contentDescription = "Redo",
                                 tint = if (canRedo) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
                                 modifier = Modifier.size(20.dp)
@@ -347,7 +346,7 @@ fun EditorScreen(
                             modifier = Modifier.height(34.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Filled.IosShare,
+                                imageVector = Icons.Filled.Share,
                                 contentDescription = null,
                                 modifier = Modifier.size(14.dp)
                             )
@@ -670,7 +669,7 @@ fun EditorScreen(
                         )
                         EditorActionChip(
                             label = "Split",
-                            icon = Icons.Filled.CallSplit,
+                            icon = Icons.Filled.ContentCut,
                             onClick = {
                                 viewModel.splitAtPlayhead()
                                 Toast.makeText(context, "Clip split at $currentFormatted", Toast.LENGTH_SHORT).show()

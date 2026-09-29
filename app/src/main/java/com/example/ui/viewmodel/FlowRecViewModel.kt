@@ -556,9 +556,9 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
         _navigationStack.value = listOf(mappedTab)
     }
 
-    fun navigateBack(): Boolean {
+    fun navigateBack() {
         val currentStack = _navigationStack.value.toMutableList()
-        return if (currentStack.size > 1) {
+        if (currentStack.size > 1) {
             currentStack.removeAt(currentStack.lastIndex)
             _navigationStack.value = currentStack
             val newTop = currentStack.last()
@@ -573,9 +573,6 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
             if (mappedTab != null) {
                 _bottomNavTab.value = mappedTab
             }
-            true
-        } else {
-            false
         }
     }
 

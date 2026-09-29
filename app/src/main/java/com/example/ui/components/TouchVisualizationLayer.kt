@@ -1,6 +1,7 @@
 package com.example.ui.components
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
@@ -34,7 +35,7 @@ import kotlinx.coroutines.delay
 private class ActiveRipple(
     val id: Long,
     val center: Offset,
-    val animProgress: Animatable<Float, *> = Animatable(0f)
+    val animProgress: Animatable<Float, AnimationVector1D> = Animatable(0f)
 )
 
 /**
