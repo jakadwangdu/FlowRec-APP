@@ -826,7 +826,7 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
                     File(project.videoPath.substringBeforeLast(".") + ".flowtouch")
                 }
                 if (touchFile.exists()) {
-                    val meta = TouchTracker.Helper.readMetadata(touchFile)
+                    val meta = TouchTracker.readMetadata(touchFile)
                     if (meta != null) {
                         touchEvents = meta.events
                     }
