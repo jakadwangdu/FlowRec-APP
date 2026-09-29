@@ -66,7 +66,7 @@ import com.example.ui.viewmodel.FlowRecViewModel
 import androidx.compose.material.icons.filled.Redo
 import androidx.compose.material.icons.filled.Undo
 import androidx.compose.runtime.LaunchedEffect
-import com.example.ui.navigation.Screen
+import com.example.editor.model.ZoomKeyframe
 
 @Composable
 fun TimelineScreen(
@@ -144,7 +144,7 @@ fun TimelineScreen(
                     TimelineActionButton(
                         label = "Add Zoom",
                         icon = Icons.Filled.AddCircleOutline,
-                        onClick = { viewModel.addZoomKeyframe(timeMs = timelinePosMs) }
+                        onClick = { viewModel.addZoomKeyframe(ZoomKeyframe(timeMs = timelinePosMs)) }
                     )
                     TimelineActionButton(
                         label = "Split",
@@ -271,7 +271,7 @@ fun TimelineScreen(
                 WaveformCanvas(
                     durationSeconds = (editorState.effectiveDurationMs / 1000).toInt().coerceAtLeast(1),
                     playheadSeconds = (timelinePosMs / 1000).toInt(),
-                    onSeek = { viewModel.setTimelinePosition(it * 1000L) },
+                    onSeek = { viewModel.seekTimeline(it * 1000L) },
                     cursorTrackEnabled = cursorEnabled,
                     zoomTrackEnabled = true,
                     effectsTrackEnabled = true,

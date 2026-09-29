@@ -485,7 +485,7 @@ fun RecordScreen(
                             modifier = Modifier.weight(1f)
                         ) {
                             Icon(
-                                imageVector = Icons.Filled.Gamepad,
+                                imageVector = Icons.Default.PlayArrow,
                                 contentDescription = null,
                                 tint = if (isGameMode) AccentBlue else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(20.dp)
