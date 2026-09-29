@@ -78,7 +78,17 @@ jobs:
       - name: Run Unit Tests
         run: |
           echo "=== Executing FlowRec Unit Tests (Phase 1–7 Test Suites) ==="
-          gradle :app:testDebugUnitTest --no-daemon
+          set -o pipefail
+          gradle :app:testDebugUnitTest --stacktrace --no-daemon 2>&1 | tee /tmp/test_build.log || {
+            echo "::error::Unit tests failed. Emitting log details:"
+            grep -E "e: |Error: |FAILED|Caused by:" /tmp/test_build.log | head -n 25 | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+            tail -n 20 /tmp/test_build.log | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+            exit 1
+          }
 
       - name: Build Release and Debug APKs
         env:
