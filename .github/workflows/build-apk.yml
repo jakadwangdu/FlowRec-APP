@@ -79,12 +79,13 @@ jobs:
         run: |
           set -o pipefail
           gradle :app:assembleDebug --stacktrace --no-daemon 2>&1 | tee /tmp/gradle_build.log || {
-            echo "## ❌ Gradle Build Failure Details" >> "$GITHUB_STEP_SUMMARY"
-            echo '```' >> "$GITHUB_STEP_SUMMARY"
-            grep -E "e: |Error: |FAILED|Caused by:" /tmp/gradle_build.log -A 3 -B 1 | head -n 80 >> "$GITHUB_STEP_SUMMARY"
-            echo '---' >> "$GITHUB_STEP_SUMMARY"
-            tail -n 60 /tmp/gradle_build.log >> "$GITHUB_STEP_SUMMARY"
-            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::Gradle build failed. Emitting log details:"
+            grep -E "e: |Error: |FAILED|Caused by:" /tmp/gradle_build.log | head -n 15 | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+            tail -n 15 /tmp/gradle_build.log | while IFS= read -r line; do
+              echo "::error::$line"
+            done
             exit 1
           }
 
