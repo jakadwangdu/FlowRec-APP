@@ -104,6 +104,7 @@ import com.example.editor.model.TextOverlay
 import com.example.editor.model.TouchOverlayConfig
 import com.example.editor.model.ZoomKeyframe
 import com.example.editor.timeline.TimelineManager
+import com.example.ui.components.AiReviewModal
 import com.example.ui.components.FlowRecBottomNav
 import com.example.ui.components.FlowRecMedia3Player
 import com.example.ui.components.formatSeconds
@@ -111,6 +112,7 @@ import com.example.ui.theme.AccentBlue
 import com.example.ui.theme.AccentRed
 import com.example.ui.viewmodel.FlowRecViewModel
 import com.example.ui.viewmodel.Screen
+import androidx.compose.material.icons.filled.AutoAwesome
 import java.io.File
 import java.util.UUID
 
@@ -142,6 +144,10 @@ fun EditorScreen(
     val loadedTouches by viewModel.loadedTouchEvents.collectAsState()
     val activeSegmentId by viewModel.activeSegmentId.collectAsState()
     val activeToolTab by viewModel.activeToolTab.collectAsState()
+    val showAiReviewModal by viewModel.showAiReviewModal.collectAsState()
+    val aiAnalysisResult by viewModel.aiAnalysisResult.collectAsState()
+    val aiAnalysisProgress by viewModel.aiAnalysisProgress.collectAsState()
+    val isAiAnalyzing by viewModel.isAiAnalyzing.collectAsState()
 
     val totalTimelineMs = editorState.effectiveDurationMs.coerceAtLeast(1000L)
     val currentFormatted = formatSeconds((timelinePositionMs / 1000L).toInt())
@@ -330,6 +336,26 @@ fun EditorScreen(
                                 tint = if (canRedo) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
                                 modifier = Modifier.size(20.dp)
                             )
+                        }
+
+                        // AI Intelligence Button
+                        Button(
+                            onClick = { viewModel.openAiReview() },
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                contentColor = MaterialTheme.colorScheme.primary
+                            ),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                            modifier = Modifier.height(34.dp).testTag("btn_editor_ai")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.AutoAwesome,
+                                contentDescription = "AI",
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("AI", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
 
                         // Export Button
@@ -651,6 +677,50 @@ fun EditorScreen(
                         .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
+                    // SECTION AI: AI Video Intelligence
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "✨ AI Video Intelligence",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        if (aiAnalysisResult != null) {
+                            Text(
+                                text = "${aiAnalysisResult?.pendingSuggestions?.size ?: 0} suggestions ready",
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        EditorActionChip(
+                            label = "Make it Flow",
+                            icon = Icons.Filled.AutoAwesome,
+                            tint = MaterialTheme.colorScheme.primary,
+                            onClick = { viewModel.openAiReview() },
+                            modifier = Modifier.weight(1f)
+                        )
+                        EditorActionChip(
+                            label = "Smart Cut",
+                            icon = Icons.Filled.ContentCut,
+                            onClick = { viewModel.openAiReview() },
+                            modifier = Modifier.weight(1f)
+                        )
+                        EditorActionChip(
+                            label = "Smart Zoom",
+                            icon = Icons.Filled.ZoomIn,
+                            onClick = { viewModel.openAiReview() },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
                     // SECTION A: Clip Operations (Trim, Split, Delete)
                     Text(
                         text = "Clip Operations",
@@ -1123,6 +1193,21 @@ fun EditorScreen(
                     Text("Cancel")
                 }
             }
+        )
+    }
+
+    // 8. AI VIDEO INTELLIGENCE REVIEW MODAL (Make it Flow / Suggestions)
+    if (showAiReviewModal) {
+        AiReviewModal(
+            analysisResult = aiAnalysisResult,
+            analysisProgress = aiAnalysisProgress,
+            isAnalyzing = isAiAnalyzing,
+            onApplySuggestion = { viewModel.applyAiSuggestion(it) },
+            onRejectSuggestion = { viewModel.rejectAiSuggestion(it) },
+            onApplyAll = { viewModel.makeItFlow() },
+            onPreviewSuggestion = { viewModel.seekTimeline(it) },
+            onCancelAnalysis = { viewModel.cancelAiAnalysis() },
+            onDismiss = { viewModel.closeAiReview() }
         )
     }
 }

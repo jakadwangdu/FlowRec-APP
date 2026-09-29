@@ -66,8 +66,10 @@ import com.example.ui.viewmodel.FlowRecViewModel
 import androidx.compose.material.icons.filled.Redo
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Undo
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.runtime.LaunchedEffect
 import com.example.editor.model.ZoomKeyframe
+import com.example.ui.components.AiReviewModal
 import com.example.ui.viewmodel.Screen
 
 @Composable
@@ -91,6 +93,10 @@ fun TimelineScreen(
     val canUndo by viewModel.canUndo.collectAsState()
     val canRedo by viewModel.canRedo.collectAsState()
     val activeSegId by viewModel.activeSegmentId.collectAsState()
+    val showAiReviewModal by viewModel.showAiReviewModal.collectAsState()
+    val aiAnalysisResult by viewModel.aiAnalysisResult.collectAsState()
+    val aiAnalysisProgress by viewModel.aiAnalysisProgress.collectAsState()
+    val isAiAnalyzing by viewModel.isAiAnalyzing.collectAsState()
 
     val currentFormatted = formatSeconds((timelinePosMs / 1000).toInt())
     val totalFormatted = formatSeconds((editorState.effectiveDurationMs / 1000).toInt().coerceAtLeast(1))
@@ -121,6 +127,16 @@ fun TimelineScreen(
                             Icons.Filled.Redo,
                             contentDescription = "Redo",
                             tint = if (canRedo) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                        )
+                    }
+                    IconButton(
+                        onClick = { viewModel.openAiReview() },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            Icons.Filled.AutoAwesome,
+                            contentDescription = "AI Intelligence",
+                            tint = MaterialTheme.colorScheme.primary
                         )
                     }
                     IconButton(
@@ -295,6 +311,20 @@ fun TimelineScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
         }
+    }
+
+    if (showAiReviewModal) {
+        AiReviewModal(
+            analysisResult = aiAnalysisResult,
+            analysisProgress = aiAnalysisProgress,
+            isAnalyzing = isAiAnalyzing,
+            onApplySuggestion = { viewModel.applyAiSuggestion(it) },
+            onRejectSuggestion = { viewModel.rejectAiSuggestion(it) },
+            onApplyAll = { viewModel.makeItFlow() },
+            onPreviewSuggestion = { viewModel.seekTimeline(it) },
+            onCancelAnalysis = { viewModel.cancelAiAnalysis() },
+            onDismiss = { viewModel.closeAiReview() }
+        )
     }
 }
 

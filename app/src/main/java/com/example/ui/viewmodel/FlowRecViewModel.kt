@@ -55,6 +55,13 @@ import com.example.editor.history.EditorHistoryManager
 import com.example.editor.timeline.TimelineManager
 import com.example.recorder.touch.FlowTouchEvent
 import com.example.recorder.touch.TouchTracker
+import com.example.ai.AiAnalysisEngine
+import com.example.ai.AiAnalysisProgress
+import com.example.ai.AiAnalysisResult
+import com.example.ai.AiAnalysisState
+import com.example.ai.AiDecisionManager
+import com.example.ai.AiSuggestion
+import com.example.ai.AiSuggestionType
 
 enum class Screen {
     HOME,
@@ -348,6 +355,22 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
 
     private val _loadedTouchEvents = MutableStateFlow<List<FlowTouchEvent>>(emptyList())
     val loadedTouchEvents: StateFlow<List<FlowTouchEvent>> = _loadedTouchEvents.asStateFlow()
+
+    // Phase 5: Real AI Video Intelligence Layer State
+    private val aiEngine = AiAnalysisEngine(application)
+    private var aiAnalysisJob: Job? = null
+
+    private val _aiAnalysisResult = MutableStateFlow<AiAnalysisResult?>(null)
+    val aiAnalysisResult: StateFlow<AiAnalysisResult?> = _aiAnalysisResult.asStateFlow()
+
+    private val _isAiAnalyzing = MutableStateFlow(false)
+    val isAiAnalyzing: StateFlow<Boolean> = _isAiAnalyzing.asStateFlow()
+
+    private val _aiAnalysisProgress = MutableStateFlow(AiAnalysisProgress())
+    val aiAnalysisProgress: StateFlow<AiAnalysisProgress> = _aiAnalysisProgress.asStateFlow()
+
+    private val _showAiReviewModal = MutableStateFlow(false)
+    val showAiReviewModal: StateFlow<Boolean> = _showAiReviewModal.asStateFlow()
 
     private val _activeSegmentId = MutableStateFlow<String?>(null)
     val activeSegmentId: StateFlow<String?> = _activeSegmentId.asStateFlow()
@@ -882,10 +905,22 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
 
             val finalState = state.copy(faceCamTrack = facecamTrack)
 
+            // 6. Check .flowai companion file
+            var loadedAiResult: AiAnalysisResult? = null
+            if (project.videoPath.isNotBlank()) {
+                val aiFile = File(project.videoPath.substringBeforeLast(".") + ".flowai")
+                if (aiFile.exists() && aiFile.length() > 0) {
+                    try {
+                        loadedAiResult = AiAnalysisResult.fromJson(aiFile.readText())
+                    } catch (_: Exception) {}
+                }
+            }
+
             viewModelScope.launch(Dispatchers.Main) {
                 _editorState.value = finalState
                 _loadedTouchEvents.value = touchEvents
                 _activeSegmentId.value = finalState.segments.firstOrNull()?.id
+                _aiAnalysisResult.value = loadedAiResult
                 editorHistory.clear()
                 updateUndoRedoFlags()
                 _timelinePositionMs.value = 0L
@@ -918,6 +953,166 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
             dao.updateProject(updated)
             _selectedProject.value = updated
         }
+    }
+
+    // Phase 5: AI Video Intelligence Pipeline Actions
+    fun saveAiAnalysisResult() {
+        val proj = _selectedProject.value ?: return
+        val currentAi = _aiAnalysisResult.value ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            if (proj.videoPath.isNotBlank()) {
+                try {
+                    val aiFile = File(proj.videoPath.substringBeforeLast(".") + ".flowai")
+                    aiFile.writeText(currentAi.toJson())
+                } catch (e: Exception) {
+                    Log.w("FlowRecViewModel", "Error saving .flowai companion file: ${e.message}")
+                }
+            }
+        }
+    }
+
+    fun openAiReview() {
+        _showAiReviewModal.value = true
+        val proj = _selectedProject.value
+        if (proj != null && _aiAnalysisResult.value == null && !_isAiAnalyzing.value) {
+            runAiAnalysis(forceReanalyze = false)
+        }
+    }
+
+    fun closeAiReview() {
+        _showAiReviewModal.value = false
+    }
+
+    fun runAiAnalysis(forceReanalyze: Boolean = false) {
+        val proj = _selectedProject.value ?: return
+        if (proj.videoPath.isBlank()) return
+
+        aiAnalysisJob?.cancel()
+        aiAnalysisJob = viewModelScope.launch(Dispatchers.Default) {
+            _isAiAnalyzing.value = true
+            _aiAnalysisProgress.value = AiAnalysisProgress(
+                state = AiAnalysisState.ANALYZING_TOUCHES,
+                progressPercent = 5f,
+                currentStepMessage = "Initializing AI Video Intelligence..."
+            )
+
+            val videoFile = File(proj.videoPath)
+
+            // Cache check: if .flowai exists and source video file has not been re-analyzed
+            val aiFile = File(proj.videoPath.substringBeforeLast(".") + ".flowai")
+            if (!forceReanalyze && aiFile.exists() && aiFile.length() > 0) {
+                try {
+                    val cached = AiAnalysisResult.fromJson(aiFile.readText())
+                    if (cached != null) {
+                        withContext(Dispatchers.Main) {
+                            _aiAnalysisResult.value = cached
+                            _isAiAnalyzing.value = false
+                            _aiAnalysisProgress.value = AiAnalysisProgress(
+                                state = AiAnalysisState.READY,
+                                progressPercent = 100f,
+                                currentStepMessage = "Cached AI suggestions loaded."
+                            )
+                        }
+                        return@launch
+                    }
+                } catch (_: Exception) {}
+            }
+
+            try {
+                val result = aiEngine.analyze(
+                    projectId = proj.id,
+                    videoFile = videoFile,
+                    touchEvents = _loadedTouchEvents.value,
+                    onProgress = { prog ->
+                        _aiAnalysisProgress.value = prog
+                    }
+                )
+
+                // Save to companion .flowai file
+                try {
+                    aiFile.writeText(result.toJson())
+                } catch (e: Exception) {
+                    Log.w("FlowRecViewModel", "Failed to cache AI analysis: ${e.message}")
+                }
+
+                withContext(Dispatchers.Main) {
+                    _aiAnalysisResult.value = result
+                    _isAiAnalyzing.value = false
+                }
+            } catch (ce: kotlinx.coroutines.CancellationException) {
+                withContext(Dispatchers.Main) {
+                    _isAiAnalyzing.value = false
+                    _aiAnalysisProgress.value = AiAnalysisProgress(
+                        state = AiAnalysisState.CANCELLED,
+                        progressPercent = 0f,
+                        currentStepMessage = "Analysis cancelled."
+                    )
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    _isAiAnalyzing.value = false
+                    _aiAnalysisProgress.value = AiAnalysisProgress(
+                        state = AiAnalysisState.ERROR,
+                        progressPercent = 0f,
+                        currentStepMessage = "Error analyzing: ${e.message}",
+                        errorMessage = e.message
+                    )
+                }
+            }
+        }
+    }
+
+    fun cancelAiAnalysis() {
+        aiAnalysisJob?.cancel()
+        _isAiAnalyzing.value = false
+        _aiAnalysisProgress.value = AiAnalysisProgress(
+            state = AiAnalysisState.CANCELLED,
+            progressPercent = 0f,
+            currentStepMessage = "Analysis cancelled."
+        )
+    }
+
+    fun applyAiSuggestion(suggestion: AiSuggestion) {
+        val updatedEditorState = AiDecisionManager.applySuggestion(_editorState.value, suggestion, editorHistory)
+        _editorState.value = updatedEditorState
+        updateUndoRedoFlags()
+        saveCurrentProjectEditorData()
+
+        _aiAnalysisResult.value?.let { currentRes ->
+            val updatedList = currentRes.suggestions.map {
+                if (it.id == suggestion.id) it.copy(isApplied = true, isRejected = false) else it
+            }
+            _aiAnalysisResult.value = currentRes.copy(suggestions = updatedList)
+            saveAiAnalysisResult()
+        }
+    }
+
+    fun rejectAiSuggestion(suggestion: AiSuggestion) {
+        AiDecisionManager.rejectSuggestion(suggestion)
+        _aiAnalysisResult.value?.let { currentRes ->
+            val updatedList = currentRes.suggestions.map {
+                if (it.id == suggestion.id) it.copy(isApplied = false, isRejected = true) else it
+            }
+            _aiAnalysisResult.value = currentRes.copy(suggestions = updatedList)
+            saveAiAnalysisResult()
+        }
+    }
+
+    fun makeItFlow() {
+        val currentRes = _aiAnalysisResult.value ?: return
+        val pending = currentRes.pendingSuggestions
+        if (pending.isEmpty()) return
+
+        val updatedEditorState = AiDecisionManager.applyAll(_editorState.value, pending, editorHistory)
+        _editorState.value = updatedEditorState
+        updateUndoRedoFlags()
+        saveCurrentProjectEditorData()
+
+        val updatedList = currentRes.suggestions.map {
+            if (!it.isRejected) it.copy(isApplied = true) else it
+        }
+        _aiAnalysisResult.value = currentRes.copy(suggestions = updatedList)
+        saveAiAnalysisResult()
     }
 
     fun zoomTimelineIn() {
