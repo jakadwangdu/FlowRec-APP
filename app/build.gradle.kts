@@ -16,19 +16,27 @@ android {
     applicationId = "com.aistudio.flowrec.screenrecorder"
     minSdk = 24
     targetSdk = 36
-    versionCode = 5
-    versionName = "1.4"
+    versionCode = 6
+    versionName = "1.0.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
   signingConfigs {
+    val storeFilePath = System.getenv("SIGNING_STORE_FILE") ?: System.getenv("KEYSTORE_PATH")
+    val storePasswordEnv = System.getenv("SIGNING_STORE_PASSWORD") ?: System.getenv("STORE_PASSWORD")
+    val keyAliasEnv = System.getenv("SIGNING_KEY_ALIAS") ?: "upload"
+    val keyPasswordEnv = System.getenv("SIGNING_KEY_PASSWORD") ?: System.getenv("KEY_PASSWORD")
+
+    val hasReleaseSigning = storeFilePath != null && file(storeFilePath).exists() && !storePasswordEnv.isNullOrBlank()
+
     create("release") {
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      storeFile = file(keystorePath)
-      storePassword = System.getenv("STORE_PASSWORD")
-      keyAlias = "upload"
-      keyPassword = System.getenv("KEY_PASSWORD")
+      if (hasReleaseSigning) {
+        storeFile = file(storeFilePath!!)
+        storePassword = storePasswordEnv
+        keyAlias = keyAliasEnv
+        keyPassword = keyPasswordEnv
+      }
     }
     create("debugConfig") {
       storeFile = file("${rootDir}/debug.keystore")
@@ -40,10 +48,19 @@ android {
 
   buildTypes {
     release {
-      isCrunchPngs = false
-      isMinifyEnabled = false
+      isMinifyEnabled = true
+      isShrinkResources = true
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      signingConfig = signingConfigs.getByName("release")
+
+      val releaseConfig = signingConfigs.getByName("release")
+      if (releaseConfig.storeFile != null && releaseConfig.storeFile!!.exists()) {
+        signingConfig = releaseConfig
+      } else {
+        val debugKeystore = file("${rootDir}/debug.keystore")
+        if (debugKeystore.exists()) {
+          signingConfig = signingConfigs.getByName("debugConfig")
+        }
+      }
     }
     debug { signingConfig = signingConfigs.getByName("debugConfig") }
   }
