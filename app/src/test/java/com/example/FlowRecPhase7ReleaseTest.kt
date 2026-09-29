@@ -1,10 +1,11 @@
 package com.example
 
-import com.example.ai.decision.AiDecisionManager
-import com.example.ai.model.AiAnalysisResult
-import com.example.ai.model.AiCategory
-import com.example.ai.model.AiSuggestion
-import com.example.ai.model.AiActionType
+import com.example.ai.AiAnalysisProgress
+import com.example.ai.AiAnalysisResult
+import com.example.ai.AiAnalysisState
+import com.example.ai.AiDecisionManager
+import com.example.ai.AiSuggestion
+import com.example.ai.AiSuggestionType
 import com.example.editor.export.ExportFps
 import com.example.editor.export.ExportResolution
 import com.example.editor.export.calculateBitrate
@@ -113,24 +114,21 @@ class FlowRecPhase7ReleaseTest {
     fun testProductionAiAnalysisSerializationRoundtrip() {
         val suggestion = AiSuggestion(
             id = "sug_release",
-            type = AiActionType.AUTO_ZOOM,
+            type = AiSuggestionType.SMART_ZOOM,
             title = "Focus on Action",
             description = "Zoom into tap coordinates",
             confidence = 0.92f,
-            timeMs = 1800L,
-            durationMs = 2500L,
-            suggestedAction = "zoom",
-            actionCategory = AiCategory.ZOOM
+            startTimeMs = 1800L,
+            endTimeMs = 4300L,
+            zoomKeyframe = ZoomKeyframe(timeMs = 1800L, scale = 1.6f, durationMs = 2500L)
         )
 
         val aiResult = AiAnalysisResult(
             projectId = "proj_release_ai",
-            analysisTimestamp = System.currentTimeMillis(),
-            suggestions = listOf(suggestion),
-            transcriptionText = "Offline local-first screen recording test",
-            deadAirDurationsMs = 800L,
-            touchClusterCount = 5,
-            deviceSpeechAvailable = true
+            sourceDurationMs = 15_000L,
+            suggestedTitle = "Offline local-first screen recording test",
+            suggestedDescription = "Production Release Testing",
+            suggestions = listOf(suggestion)
         )
 
         val json = aiResult.toJson()
@@ -187,11 +185,7 @@ class FlowRecPhase7ReleaseTest {
 
     @Test
     fun testOfflineAndAccountlessInvariants() {
-        // Verify that AiDecisionManager operates purely locally without remote sync
-        val manager = AiDecisionManager()
-        assertFalse(manager.hasUndoableAiActions())
-
-        // Verify history manager is strictly bounded to prevent memory leaks in long sessions
+        // Verify history manager is strictly bounded to prevent memory leaks in long editing sessions
         val history = EditorHistoryManager(maxStackSize = 5)
         val baseState = EditorProjectState.createDefault("test", 10_000L)
         for (i in 1..10) {

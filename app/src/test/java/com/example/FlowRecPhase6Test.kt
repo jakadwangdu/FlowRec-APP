@@ -1,18 +1,18 @@
 package com.example
 
-import com.example.ai.decision.AiDecisionManager
-import com.example.ai.model.AiActionType
-import com.example.ai.model.AiAnalysisProgress
-import com.example.ai.model.AiAnalysisResult
-import com.example.ai.model.AiAnalysisState
-import com.example.ai.model.AiCategory
-import com.example.ai.model.AiSuggestion
+import com.example.ai.AiDecisionManager
+import com.example.ai.AiAnalysisProgress
+import com.example.ai.AiAnalysisResult
+import com.example.ai.AiAnalysisState
+import com.example.ai.AiSuggestion
+import com.example.ai.AiSuggestionType
 import com.example.editor.export.ExportFps
 import com.example.editor.export.ExportResolution
 import com.example.editor.export.calculateBitrate
 import com.example.editor.history.EditorHistoryManager
 import com.example.editor.model.EditorProjectState
 import com.example.editor.model.TimelineSegment
+import com.example.editor.model.ZoomKeyframe
 import com.example.editor.timeline.TimelineManager
 import com.example.model.ExportQuality
 import org.junit.Assert.assertEquals
@@ -97,23 +97,20 @@ class FlowRecPhase6Test {
     fun testAiAnalysisResultJsonSerialization() {
         val suggestion = AiSuggestion(
             id = "sug_1",
-            type = AiActionType.TRIM_SILENCE,
+            type = AiSuggestionType.SMART_CUT,
             title = "Trim initial silence",
             description = "Cut 1.2s dead air",
-            confidence = 0.95f,
-            timeMs = 0L,
-            durationMs = 1200L,
-            suggestedAction = "trim",
-            actionCategory = AiCategory.CLEANUP
+            startTimeMs = 0L,
+            endTimeMs = 1200L,
+            confidence = 0.95f
         )
         val result = AiAnalysisResult(
             projectId = "proj_test",
-            analysisTimestamp = 123456789L,
+            sourceDurationMs = 10_000L,
+            suggestedTitle = "Welcome to FlowRec",
+            suggestedDescription = "Demo recording",
             suggestions = listOf(suggestion),
-            transcriptionText = "Welcome to FlowRec",
-            deadAirDurationsMs = 1200L,
-            touchClusterCount = 3,
-            deviceSpeechAvailable = true
+            idleCutsCount = 1
         )
 
         val json = result.toJson()
@@ -123,36 +120,38 @@ class FlowRecPhase6Test {
         assertEquals(result.projectId, deserialized!!.projectId)
         assertEquals(1, deserialized.suggestions.size)
         assertEquals(result.suggestions[0].title, deserialized.suggestions[0].title)
-        assertEquals(result.transcriptionText, deserialized.transcriptionText)
-        assertEquals(result.deadAirDurationsMs, deserialized.deadAirDurationsMs)
+        assertEquals(result.suggestedTitle, deserialized.suggestedTitle)
     }
 
     @Test
     fun testAiDecisionManagerUndoAndAcceptReject() {
+        val zoomKf = ZoomKeyframe(
+            timeMs = 1500L,
+            scale = 1.8f,
+            durationMs = 2000L
+        )
         val suggestion = AiSuggestion(
             id = "sug_test",
-            type = AiActionType.AUTO_ZOOM,
+            type = AiSuggestionType.SMART_ZOOM,
             title = "Smooth Zoom",
             description = "Zoom into tap target",
+            startTimeMs = 1500L,
+            endTimeMs = 3500L,
             confidence = 0.88f,
-            timeMs = 1500L,
-            durationMs = 2000L,
-            suggestedAction = "zoom",
-            actionCategory = AiCategory.ZOOM
+            zoomKeyframe = zoomKf
         )
 
-        val manager = AiDecisionManager()
+        val history = EditorHistoryManager(maxStackSize = 10)
         val initial = EditorProjectState.createDefault("proj_ai", 10_000L)
 
-        val updated = manager.applySuggestion(initial, suggestion)
-        assertTrue(manager.hasUndoableAiActions())
+        val updated = AiDecisionManager.applySuggestion(initial, suggestion, history)
+        assertTrue(history.canUndo())
         assertEquals(1, updated.zoomKeyframes.size)
 
-        // Undo AI action
-        val reverted = manager.undoLastAiAction(updated)
+        // Undo AI action through history
+        val reverted = history.undo(updated)
         assertNotNull(reverted)
         assertEquals(0, reverted!!.zoomKeyframes.size)
-        assertFalse(manager.hasUndoableAiActions())
     }
 
     @Test
