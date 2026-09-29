@@ -34,6 +34,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -76,8 +78,23 @@ fun VideoReadyScreen(
 
     val isCustomFile = actualProject.thumbnailResName.startsWith("/") || actualProject.thumbnailResName.startsWith("file:")
 
-    val formattedDuration = formatSeconds(actualProject.durationSeconds)
-    val sizeMb = (actualProject.fileSizeBytes / (1024 * 1024)).coerceAtLeast(1)
+    val latestResult by viewModel.latestExportResult.collectAsState()
+
+    val formattedDuration = if (latestResult != null) {
+        formatSeconds((latestResult!!.durationMs / 1000L).toInt())
+    } else {
+        formatSeconds(actualProject.durationSeconds)
+    }
+    val sizeMb = if (latestResult != null) {
+        (latestResult!!.fileSizeBytes / (1024L * 1024L)).coerceAtLeast(1)
+    } else {
+        (actualProject.fileSizeBytes / (1024 * 1024)).coerceAtLeast(1)
+    }
+    val resolutionLabel = if (latestResult != null) {
+        "${latestResult!!.width}x${latestResult!!.height} · ${latestResult!!.fps}fps"
+    } else {
+        "${actualProject.resolution} · ${actualProject.fps}fps"
+    }
 
     Column(
         modifier = modifier
@@ -192,7 +209,7 @@ fun VideoReadyScreen(
                         color = Color.White
                     )
                     Text(
-                        text = "${actualProject.resolution} · ${actualProject.fps}fps · $formattedDuration · ${sizeMb} MB",
+                        text = "$resolutionLabel · $formattedDuration · ${sizeMb} MB",
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                         color = Color.White.copy(alpha = 0.8f)
                     )

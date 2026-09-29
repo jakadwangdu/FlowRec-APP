@@ -31,6 +31,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import com.example.editor.export.ExportEngine
+import com.example.editor.export.ExportConfig
+import com.example.editor.export.ExportProgress
+import com.example.editor.export.ExportResult
+import com.example.editor.export.ExportResolution
+import com.example.editor.export.ExportFps
+import com.example.editor.export.ExportState
 import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
@@ -451,6 +459,20 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
 
     private val _exportProgress = MutableStateFlow(0f)
     val exportProgress: StateFlow<Float> = _exportProgress.asStateFlow()
+
+    private val exportEngine by lazy { ExportEngine(getApplication()) }
+
+    private val _exportResolution = MutableStateFlow(ExportResolution.FHD_1080P)
+    val exportResolution: StateFlow<ExportResolution> = _exportResolution.asStateFlow()
+
+    private val _exportFps = MutableStateFlow(ExportFps.FPS_30)
+    val exportFps: StateFlow<ExportFps> = _exportFps.asStateFlow()
+
+    private val _exportProgressDetails = MutableStateFlow(ExportProgress())
+    val exportProgressDetails: StateFlow<ExportProgress> = _exportProgressDetails.asStateFlow()
+
+    private val _latestExportResult = MutableStateFlow<ExportResult?>(null)
+    val latestExportResult: StateFlow<ExportResult?> = _latestExportResult.asStateFlow()
 
     private var playbackJob: Job? = null
     private var exportJob: Job? = null
@@ -1089,61 +1111,115 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
         _exportQuality.value = quality
     }
 
+    fun setExportResolution(resolution: ExportResolution) {
+        _exportResolution.value = resolution
+    }
+
+    fun setExportFps(fps: ExportFps) {
+        _exportFps.value = fps
+    }
+
+    fun cancelExport() {
+        exportEngine.cancel()
+        exportJob?.cancel()
+        _isExporting.value = false
+        _exportProgress.value = 0f
+        _exportProgressDetails.value = ExportProgress(
+            state = ExportState.CANCELLED,
+            currentStepMessage = "Export cancelled by user"
+        )
+    }
+
     fun startExport(onCompleted: () -> Unit) {
+        val proj = _selectedProject.value ?: _allProjects.value.firstOrNull()
+        if (proj == null) {
+            Toast.makeText(getApplication(), "No active project to export", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        var sourceFile: File? = if (proj.videoPath.isNotBlank() && !proj.videoPath.startsWith("content:")) {
+            File(proj.videoPath)
+        } else null
+
+        if (sourceFile == null || !sourceFile.exists()) {
+            val recordingsDir = File(getApplication<Application>().filesDir, "recordings")
+            val candidates = recordingsDir.listFiles { f -> f.extension == "mp4" }
+            sourceFile = candidates?.maxByOrNull { it.lastModified() }
+        }
+
+        if (sourceFile == null || !sourceFile.exists()) {
+            Toast.makeText(getApplication(), "Source video file not found", Toast.LENGTH_LONG).show()
+            return
+        }
+
         _isExporting.value = true
         _exportProgress.value = 0f
+        _exportProgressDetails.value = ExportProgress(
+            state = ExportState.PREPARING,
+            currentStepMessage = "Preparing hardware video rendering..."
+        )
+
+        val currentEditor = _editorState.value
+        val config = ExportConfig(
+            resolution = _exportResolution.value,
+            fps = _exportFps.value,
+            quality = _exportQuality.value,
+            burnTouchEffects = currentEditor.touchConfig.enabled,
+            burnFaceCam = currentEditor.faceCamTrack.enabled,
+            includeOriginalAudio = !currentEditor.audioConfig.originalAudioMuted,
+            originalAudioVolume = currentEditor.audioConfig.originalAudioVolume,
+            includeBgm = currentEditor.audioConfig.bgmTrackUri != null,
+            bgmVolume = currentEditor.audioConfig.bgmVolume,
+            includeVoiceover = currentEditor.audioConfig.voiceoverTrackUri != null,
+            voiceoverVolume = currentEditor.audioConfig.voiceoverVolume,
+            outputFileName = proj.name
+        )
+
         exportJob?.cancel()
         exportJob = viewModelScope.launch(Dispatchers.IO) {
-            for (i in 1..65) {
-                delay(20L)
-                _exportProgress.value = i / 100f
-            }
-
-            val proj = _selectedProject.value
-            var savedGalleryPath: String? = null
-
-            if (proj != null) {
-                var sourceFile: File? = if (proj.videoPath.isNotBlank() && !proj.videoPath.startsWith("content:")) {
-                    File(proj.videoPath)
-                } else null
-
-                if (sourceFile == null || !sourceFile.exists()) {
-                    val recordingsDir = File(getApplication<Application>().filesDir, "recordings")
-                    val candidates = recordingsDir.listFiles { f -> f.extension == "mp4" }
-                    sourceFile = candidates?.maxByOrNull { it.lastModified() }
-                }
-
-                if (sourceFile != null && sourceFile.exists()) {
-                    val uri = GalleryExporter.saveVideoToGallery(getApplication(), sourceFile, proj.name)
-                    if (uri != null) {
-                        savedGalleryPath = uri.toString()
+            try {
+                val result = exportEngine.exportVideo(
+                    sourceVideoFile = sourceFile,
+                    editorState = currentEditor,
+                    touchEvents = _loadedTouchEvents.value,
+                    config = config,
+                    onProgress = { progress ->
+                        _exportProgressDetails.value = progress
+                        _exportProgress.value = progress.progressPercent / 100f
                     }
-                }
-            }
-
-            for (i in 66..100) {
-                delay(15L)
-                _exportProgress.value = i / 100f
-            }
-
-            _isExporting.value = false
-            if (proj != null) {
-                val updated = proj.copy(
-                    isExported = true,
-                    videoPath = savedGalleryPath ?: proj.videoPath
                 )
-                _selectedProject.value = updated
-                dao.updateProject(updated)
-            }
 
-            viewModelScope.launch(Dispatchers.Main) {
-                Toast.makeText(
-                    getApplication(),
-                    "Video exported & saved to Gallery (Movies/FlowRec)",
-                    Toast.LENGTH_LONG
-                ).show()
-                onCompleted()
-                navigateTo(Screen.VIDEO_READY)
+                _latestExportResult.value = result
+                _isExporting.value = false
+
+                // Update Room ProjectEntity
+                val updatedProj = proj.copy(
+                    isExported = true,
+                    videoPath = result.contentUri?.toString() ?: result.outputFile.absolutePath
+                )
+                _selectedProject.value = updatedProj
+                dao.updateProject(updatedProj)
+
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(
+                        getApplication(),
+                        "Export complete! Saved to Gallery (Movies/FlowRec)",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    onCompleted()
+                    navigateTo(Screen.VIDEO_READY)
+                }
+            } catch (e: Exception) {
+                _isExporting.value = false
+                Log.e("FlowRecViewModel", "Export error: ${e.message}", e)
+                withContext(Dispatchers.Main) {
+                    val msg = if (e is kotlinx.coroutines.CancellationException) {
+                        "Export cancelled"
+                    } else {
+                        e.message ?: "Export failed"
+                    }
+                    Toast.makeText(getApplication(), msg, Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }

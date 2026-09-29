@@ -3,8 +3,6 @@ package com.example.ui.screens
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import coil.compose.AsyncImage
-import java.io.File
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -18,17 +16,28 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -47,18 +56,28 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.data.entity.ProjectEntity
-import com.example.model.ExportFormat
-import com.example.model.ExportPreset
+import com.example.editor.export.ExportFps
+import com.example.editor.export.ExportResolution
+import com.example.editor.export.calculateBitrate
 import com.example.model.ExportQuality
 import com.example.ui.components.ExportProgressModal
 import com.example.ui.components.FlowRecTopBar
+import com.example.ui.components.formatSeconds
+import com.example.ui.theme.AccentBlue
+import com.example.ui.theme.AccentGreen
 import com.example.ui.viewmodel.FlowRecViewModel
+import java.io.File
 
+/**
+ * Phase 4 Video Export Configuration & Execution Screen.
+ * Allows customizing resolution, framerate, compression quality, and inspecting
+ * burned-in overlays, touch tracks, and audio settings prior to rendering.
+ */
 @Composable
 fun ExportScreen(
     viewModel: FlowRecViewModel,
@@ -70,17 +89,29 @@ fun ExportScreen(
     BackHandler { onBackClick() }
 
     val context = LocalContext.current
-    val exportPreset by viewModel.exportPreset.collectAsState()
-    val exportFormat by viewModel.exportFormat.collectAsState()
+    val editorState by viewModel.editorState.collectAsState()
+    val exportResolution by viewModel.exportResolution.collectAsState()
+    val exportFps by viewModel.exportFps.collectAsState()
     val exportQuality by viewModel.exportQuality.collectAsState()
     val isExporting by viewModel.isExporting.collectAsState()
-    val exportProgress by viewModel.exportProgress.collectAsState()
+    val exportProgressDetails by viewModel.exportProgressDetails.collectAsState()
 
-    var showPresetMenu by remember { mutableStateOf(false) }
-    var showFormatMenu by remember { mutableStateOf(false) }
+    var showResMenu by remember { mutableStateOf(false) }
+    var showFpsMenu by remember { mutableStateOf(false) }
     var showQualityMenu by remember { mutableStateOf(false) }
     var showAdvanced by remember { mutableStateOf(false) }
 
+    val effectiveSec = (editorState.effectiveDurationMs / 1000L).toInt().coerceAtLeast(1)
+    val formattedDuration = formatSeconds(effectiveSec)
+
+    // Calculate approximate output file size
+    val estimatedBitrateBps = exportQuality.calculateBitrate(
+        width = if (exportResolution == ExportResolution.HD_720P) 1280 else 1920,
+        height = if (exportResolution == ExportResolution.HD_720P) 720 else 1080,
+        fps = exportFps.fps
+    )
+    val estimatedBytes = (estimatedBitrateBps.toLong() / 8L) * effectiveSec
+    val estimatedMb = (estimatedBytes / (1024L * 1024L)).coerceAtLeast(1)
 
     Scaffold(
         topBar = {
@@ -103,20 +134,22 @@ fun ExportScreen(
                             onExportFinished()
                         }
                     },
-                    shape = RoundedCornerShape(24.dp),
+                    shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(50.dp)
+                        .height(52.dp)
                         .testTag("btn_confirm_export")
                 ) {
+                    Icon(imageVector = Icons.Filled.Videocam, contentDescription = null, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Export",
+                        text = "Export MP4 (~$estimatedMb MB)",
                         style = MaterialTheme.typography.labelLarge.copy(
-                            fontWeight = FontWeight.SemiBold,
+                            fontWeight = FontWeight.Bold,
                             fontSize = 15.sp
                         )
                     )
@@ -180,86 +213,100 @@ fun ExportScreen(
                         modifier = Modifier.size(24.dp)
                     )
                 }
+
+                // Duration badge
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(10.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color.Black.copy(alpha = 0.75f))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = formattedDuration,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            // Preset Selector
+            // 1. Resolution Selector
             Text(
-                text = "Preset",
+                text = "Resolution",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-
             Spacer(modifier = Modifier.height(6.dp))
-
             Box {
                 ExportOptionSelector(
-                    text = exportPreset.label,
-                    onClick = { showPresetMenu = true }
+                    title = "Target Resolution",
+                    subtitle = exportResolution.label,
+                    onClick = { showResMenu = true }
                 )
                 DropdownMenu(
-                    expanded = showPresetMenu,
-                    onDismissRequest = { showPresetMenu = false }
+                    expanded = showResMenu,
+                    onDismissRequest = { showResMenu = false }
                 ) {
-                    ExportPreset.values().forEach { preset ->
+                    ExportResolution.values().forEach { res ->
                         DropdownMenuItem(
-                            text = { Text(preset.label) },
+                            text = { Text(res.label) },
                             onClick = {
-                                viewModel.setExportPreset(preset)
-                                showPresetMenu = false
+                                viewModel.setExportResolution(res)
+                                showResMenu = false
                             }
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // Format Selector
+            // 2. Framerate (FPS) Selector
             Text(
-                text = "Format",
+                text = "Framerate",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-
             Spacer(modifier = Modifier.height(6.dp))
-
             Box {
                 ExportOptionSelector(
-                    text = exportFormat.label,
-                    onClick = { showFormatMenu = true }
+                    title = "Target FPS",
+                    subtitle = exportFps.label,
+                    onClick = { showFpsMenu = true }
                 )
                 DropdownMenu(
-                    expanded = showFormatMenu,
-                    onDismissRequest = { showFormatMenu = false }
+                    expanded = showFpsMenu,
+                    onDismissRequest = { showFpsMenu = false }
                 ) {
-                    ExportFormat.values().forEach { format ->
+                    ExportFps.values().forEach { fps ->
                         DropdownMenuItem(
-                            text = { Text(format.label) },
+                            text = { Text(fps.label) },
                             onClick = {
-                                viewModel.setExportFormat(format)
-                                showFormatMenu = false
+                                viewModel.setExportFps(fps)
+                                showFpsMenu = false
                             }
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // Quality Selector
+            // 3. Compression Quality Selector
             Text(
-                text = "Quality",
+                text = "Compression & Bitrate",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-
             Spacer(modifier = Modifier.height(6.dp))
-
             Box {
                 ExportOptionSelector(
-                    text = exportQuality.label,
+                    title = "Quality Preset",
+                    subtitle = "${exportQuality.label} (${exportQuality.bitrate})",
                     onClick = { showQualityMenu = true }
                 )
                 DropdownMenu(
@@ -268,7 +315,7 @@ fun ExportScreen(
                 ) {
                     ExportQuality.values().forEach { quality ->
                         DropdownMenuItem(
-                            text = { Text(quality.label) },
+                            text = { Text("${quality.label} (${quality.bitrate})") },
                             onClick = {
                                 viewModel.setExportQuality(quality)
                                 showQualityMenu = false
@@ -280,17 +327,74 @@ fun ExportScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Advanced Settings Accordion
+            // 4. Burn-in Edits & Layers Summary
+            Text(
+                text = "Included Timeline Elements",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Card(
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
+                border = CardDefaults.outlinedCardBorder().copy(width = 0.5.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    val activeClips = editorState.segments.filter { !it.isDeleted }.size
+                    val textCount = editorState.textOverlays.size
+                    val imageCount = editorState.imageOverlays.size
+                    val zoomCount = editorState.zoomKeyframes.size
+
+                    LayerSummaryItem(
+                        icon = Icons.Filled.Layers,
+                        title = "Active Segments",
+                        value = "$activeClips clips (cuts/trims applied)"
+                    )
+                    LayerSummaryItem(
+                        icon = Icons.Filled.Layers,
+                        title = "Text & Logos",
+                        value = "$textCount text overlays · $imageCount logo watermarks"
+                    )
+                    LayerSummaryItem(
+                        icon = Icons.Filled.Videocam,
+                        title = "Zoom Transitions",
+                        value = "$zoomCount focal keyframes"
+                    )
+                    LayerSummaryItem(
+                        icon = Icons.Filled.TouchApp,
+                        title = "Touch Effects",
+                        value = if (editorState.touchConfig.enabled) "Enabled (Ripples & Highlights)" else "Disabled"
+                    )
+                    LayerSummaryItem(
+                        icon = Icons.Filled.CameraAlt,
+                        title = "FaceCam Overlay",
+                        value = if (editorState.faceCamTrack.enabled) "Active (${editorState.faceCamTrack.shape})" else "None"
+                    )
+                    LayerSummaryItem(
+                        icon = Icons.Filled.Mic,
+                        title = "Audio Mixing",
+                        value = if (editorState.audioConfig.originalAudioMuted) "Muted (Video Only)" else "Original Audio ${(editorState.audioConfig.originalAudioVolume * 100).toInt()}%"
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // 5. Advanced Settings Accordion
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { showAdvanced = !showAdvanced }
-                    .padding(vertical = 12.dp),
+                    .padding(vertical = 10.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Advanced Settings",
+                    text = "Hardware Encoder Specifications",
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -310,10 +414,11 @@ fun ExportScreen(
                         .padding(14.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("• Video Codec: H.264 / AVC High Profile", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("• Audio Codec: AAC-LC Stereo (192 kbps)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("• Motion Blur Shader: 16-sample Gaussian vector blur", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("• Hardware Acceleration: MediaCodec enabled", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("• Video Codec: Hardware MediaCodec H.264 / AVC (Baseline/High Profile)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("• Color Format: YUV420SemiPlanar / NV12", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("• Audio Codec: AAC-LC Stereo 44.1 kHz (128 kbps)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("• Destination: Movies/FlowRec (Android MediaStore Public Gallery)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("• Output Container: ISO MP4 (FastStart enabled)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
 
@@ -322,8 +427,9 @@ fun ExportScreen(
 
         if (isExporting) {
             ExportProgressModal(
-                progress = exportProgress,
-                projectName = project.name
+                progressDetails = exportProgressDetails,
+                projectName = project.name,
+                onCancel = { viewModel.cancelExport() }
             )
         }
     }
@@ -331,31 +437,59 @@ fun ExportScreen(
 
 @Composable
 private fun ExportOptionSelector(
-    text: String,
+    title: String,
+    subtitle: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant)
-            .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
+            .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-            color = MaterialTheme.colorScheme.onBackground
-        )
+        Column {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold, fontSize = 14.sp),
+                color = MaterialTheme.colorScheme.onBackground
+            )
+        }
         Icon(
             imageVector = Icons.Filled.ChevronRight,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(18.dp)
         )
+    }
+}
+
+@Composable
+private fun LayerSummaryItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    value: String
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+        Column {
+            Text(text = title, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(text = value, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+        }
     }
 }

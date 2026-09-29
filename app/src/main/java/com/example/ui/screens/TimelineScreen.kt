@@ -64,9 +64,11 @@ import com.example.ui.components.formatSeconds
 import com.example.ui.viewmodel.FlowRecViewModel
 
 import androidx.compose.material.icons.filled.Redo
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Undo
 import androidx.compose.runtime.LaunchedEffect
 import com.example.editor.model.ZoomKeyframe
+import com.example.ui.viewmodel.Screen
 
 @Composable
 fun TimelineScreen(
@@ -119,6 +121,16 @@ fun TimelineScreen(
                             Icons.Filled.Redo,
                             contentDescription = "Redo",
                             tint = if (canRedo) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                        )
+                    }
+                    IconButton(
+                        onClick = { viewModel.navigateTo(Screen.EXPORT_SETTINGS) },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            Icons.Filled.Share,
+                            contentDescription = "Export",
+                            tint = MaterialTheme.colorScheme.primary
                         )
                     }
                 }
