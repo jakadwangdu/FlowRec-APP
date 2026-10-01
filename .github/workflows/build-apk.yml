@@ -162,12 +162,23 @@ jobs:
           PROD_ASSET_PATH="${TEMP_RELEASE_DIR}/${PROD_ASSET_NAME}"
           cp "$RELEASE_SRC" "$PROD_ASSET_PATH"
 
+          # Permanent permalink assets for direct website latest downloads
+          PERM_PROD_NAME="FlowRec.apk"
+          PERM_PROD_PATH="${TEMP_RELEASE_DIR}/${PERM_PROD_NAME}"
+          cp "$RELEASE_SRC" "$PERM_PROD_PATH"
+
+          PERM_REL_NAME="FlowRec-release.apk"
+          PERM_REL_PATH="${TEMP_RELEASE_DIR}/${PERM_REL_NAME}"
+          cp "$RELEASE_SRC" "$PERM_REL_PATH"
+
           DEBUG_ASSET_NAME="FlowRec-debug-build-${{ github.run_number }}.apk"
           DEBUG_ASSET_PATH="${TEMP_RELEASE_DIR}/${DEBUG_ASSET_NAME}"
           cp "app/build/outputs/apk/debug/app-debug.apk" "$DEBUG_ASSET_PATH"
 
           echo "prod_asset_path=$PROD_ASSET_PATH" >> "$GITHUB_OUTPUT"
           echo "prod_asset_name=$PROD_ASSET_NAME" >> "$GITHUB_OUTPUT"
+          echo "perm_prod_path=$PERM_PROD_PATH" >> "$GITHUB_OUTPUT"
+          echo "perm_rel_path=$PERM_REL_PATH" >> "$GITHUB_OUTPUT"
           echo "debug_asset_path=$DEBUG_ASSET_PATH" >> "$GITHUB_OUTPUT"
           echo "debug_asset_name=$DEBUG_ASSET_NAME" >> "$GITHUB_OUTPUT"
 
@@ -178,6 +189,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           PROD_ASSET="${{ steps.prepare_asset.outputs.prod_asset_path }}"
+          PERM_PROD="${{ steps.prepare_asset.outputs.perm_prod_path }}"
+          PERM_REL="${{ steps.prepare_asset.outputs.perm_rel_path }}"
           DEBUG_ASSET="${{ steps.prepare_asset.outputs.debug_asset_path }}"
 
           RELEASE_TAG="v1.0.0-build-${{ github.run_number }}-${{ github.run_attempt }}"
@@ -213,6 +226,8 @@ jobs:
           echo "Publishing release with tag: $RELEASE_TAG"
           gh release create "$RELEASE_TAG" \
             "$PROD_ASSET" \
+            "$PERM_PROD" \
+            "$PERM_REL" \
             "$DEBUG_ASSET" \
             --title "$RELEASE_TITLE" \
             --notes-file /tmp/release_notes.md \
