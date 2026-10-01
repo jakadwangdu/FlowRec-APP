@@ -166,11 +166,11 @@ fun FlowRecApp(
     }
 
     // Auto-forward directly to editor as soon as recording finishes
-    LaunchedEffect(recorderState, selectedProject) {
-        if (currentScreen == Screen.RECORDING_HUD && recorderState == com.example.model.RecorderState.IDLE) {
-            val proj = selectedProject
-            if (proj != null) {
-                viewModel.openEditorForProject(proj)
+    LaunchedEffect(currentScreen, recorderState, projects, selectedProject) {
+        if (currentScreen == Screen.RECORDING_HUD && recorderState != com.example.model.RecorderState.RECORDING && recorderState != com.example.model.RecorderState.PAUSED) {
+            val targetProj = selectedProject ?: projects.firstOrNull()
+            if (targetProj != null) {
+                viewModel.openEditorForProject(targetProj)
             }
         }
     }

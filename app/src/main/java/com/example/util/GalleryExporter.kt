@@ -63,6 +63,20 @@ object GalleryExporter {
                     values.put(MediaStore.Video.Media.IS_PENDING, 0)
                     resolver.update(uri, values, null, null)
 
+                    try {
+                        @Suppress("DEPRECATION")
+                        val publicMoviesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES)
+                        val physicalFile = File(publicMoviesDir, "FlowRec/$finalFileName")
+                        if (physicalFile.exists()) {
+                            MediaScannerConnection.scanFile(
+                                context,
+                                arrayOf(physicalFile.absolutePath),
+                                arrayOf("video/mp4"),
+                                null
+                            )
+                        }
+                    } catch (_: Exception) {}
+
                     Log.d(TAG, "Successfully exported video to MediaStore: $uri")
                     return uri
                 }

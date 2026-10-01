@@ -781,11 +781,12 @@ class ScreenRecorderService : Service() {
                 val projectName = "Screen Recording ${sdf.format(Date())}"
 
                 var isExportedToGallery = false
-                if (videoFile != null && videoFile.exists() && videoFile.length() > 0 && autoSaveToGallery) {
+                if (videoFile != null && videoFile.exists() && videoFile.length() > 0) {
                     try {
                         val galleryUri = GalleryExporter.saveVideoToGallery(applicationContext, videoFile, projectName)
                         if (galleryUri != null) {
                             isExportedToGallery = true
+                            Log.d(TAG, "Successfully saved video to device gallery: $galleryUri")
                         }
                     } catch (e: Exception) {
                         Log.w(TAG, "Auto-save to gallery failed: ${e.message}")
@@ -872,7 +873,7 @@ class ScreenRecorderService : Service() {
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Screen Recording Saved")
-            .setContentText("Tap to edit your recording (${formatSeconds(project.durationSeconds)})")
+            .setContentText("Saved to Gallery • Tap to edit (${formatSeconds(project.durationSeconds)})")
             .setSmallIcon(android.R.drawable.ic_menu_camera)
             .setContentIntent(pendingOpenApp)
             .setAutoCancel(true)

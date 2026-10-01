@@ -377,6 +377,14 @@ class FloatingOverlayManager(private val context: Context) {
                 setOnClickListener {
                     ScreenRecorderService.stopRecording(context)
                     collapseControls()
+                    try {
+                        val openAppIntent = Intent(context, com.example.MainActivity::class.java).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                        }
+                        context.startActivity(openAppIntent)
+                    } catch (e: Exception) {
+                        android.util.Log.w("FloatingOverlayManager", "Could not bring MainActivity to front: ${e.message}")
+                    }
                 }
             }
             val stopSquare = View(context).apply {

@@ -93,6 +93,35 @@ fun RecordingHudScreen(
     val durationSeconds by viewModel.recorderEngine.durationSeconds.collectAsState()
     val config by viewModel.recorderEngine.config.collectAsState()
 
+    val allProjects by viewModel.allProjects.collectAsState()
+    val selectedProj by viewModel.selectedProject.collectAsState()
+
+    // Automatically forward directly to editor as soon as recording stops
+    LaunchedEffect(recorderState, allProjects, selectedProj) {
+        if (recorderState != RecorderState.RECORDING && recorderState != RecorderState.PAUSED) {
+            val target = selectedProj ?: allProjects.firstOrNull()
+            if (target != null) {
+                kotlinx.coroutines.delay(200L)
+                viewModel.openEditorForProject(target)
+                onRecordingComplete()
+            } else {
+                // If Room DB / file muxing is finalizing, wait up to 3.5s for the project to arrive
+                kotlinx.coroutines.withTimeoutOrNull(3500L) {
+                    while (selectedProj == null && allProjects.isEmpty()) {
+                        kotlinx.coroutines.delay(150L)
+                    }
+                }
+                val finalTarget = selectedProj ?: allProjects.firstOrNull()
+                if (finalTarget != null) {
+                    viewModel.openEditorForProject(finalTarget)
+                    onRecordingComplete()
+                } else {
+                    viewModel.switchBottomTab(com.example.model.Screen.HOME)
+                }
+            }
+        }
+    }
+
     // Immediately replace HUD screen with smooth finalizing transition when recording stops
     if (recorderState != RecorderState.RECORDING && recorderState != RecorderState.PAUSED) {
         Box(
