@@ -67,7 +67,7 @@ object AiDecisionManager {
                     yPercent = 0.86f,
                     textColorHex = "#FFFFFF",
                     backgroundColorHex = "#CC121216",
-                    fontSizeSp = 13
+                    fontSizeSp = 13f
                 )
                 stepState.copy(textOverlays = stepState.textOverlays + callout)
             }
@@ -140,7 +140,7 @@ object AiDecisionManager {
                         yPercent = 0.86f,
                         textColorHex = "#FFFFFF",
                         backgroundColorHex = "#CC121216",
-                        fontSizeSp = 13
+                        fontSizeSp = 13f
                     )
                     stepState.copy(textOverlays = stepState.textOverlays + callout)
                 }
