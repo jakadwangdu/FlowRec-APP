@@ -1,8 +1,10 @@
 # FlowRec Android 📱
 
-> Minimal screen recorder with powerful editing features — built for creators.
+> Minimal native Android screen recorder with powerful editing features — built for creators.
 
-[![GitHub Release](https://img.shields.io/github/v/release/jakadwangdu/FlowRec-APP?style=flat-square&color=black)](https://github.com/jakadwangdu/FlowRec-APP/releases/latest)
+[![Official Website](https://img.shields.io/badge/Official%20Website-flowrec.flowrec--dev.workers.dev-000000?style=flat-square&logo=cloudflare&logoColor=white)](https://flowrec.flowrec-dev.workers.dev)
+[![Web App Repo](https://img.shields.io/badge/Web%20App-jakadwangdu%2FFlowRec-black?style=flat-square&logo=github)](https://github.com/jakadwangdu/FlowRec)
+[![GitHub Release](https://img.shields.io/github/v/release/jakadwangdu/FlowRec-APP?style=flat-square&color=emerald)](https://github.com/jakadwangdu/FlowRec-APP/releases/latest)
 [![Build Status](https://img.shields.io/github/actions/workflow/status/jakadwangdu/FlowRec-APP/build-apk.yml?branch=main&style=flat-square)](https://github.com/jakadwangdu/FlowRec-APP/actions)
 [![Platform](https://img.shields.io/badge/Platform-Android-green?style=flat-square&logo=android)](https://www.android.com/)
 [![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4?style=flat-square&logo=jetpackcompose)](https://developer.android.com/jetpack/compose)
@@ -12,12 +14,16 @@
 ## ℹ️ About
 FlowRec Android is a modern, high-performance native screen recorder and studio video editor built with **Kotlin** and **Jetpack Compose Material 3**. Inspired by minimalist design aesthetics, FlowRec gives content creators, educators, and developers the tools to capture high-framerate screen recordings, apply smart zoom and cursor highlights, customize keyframe timelines, and export crisp MP4 videos.
 
-### 📥 Download APK (Latest Release)
+- **🌐 Official Website & Web App:** [https://flowrec.flowrec-dev.workers.dev](https://flowrec.flowrec-dev.workers.dev)
+- **💻 Web Repository:** [jakadwangdu/FlowRec](https://github.com/jakadwangdu/FlowRec)
+
+### 📥 Download FlowRec APK (Latest Release)
 
 [![Download APK](https://img.shields.io/badge/Download-APK%20(Latest)-000000?style=for-the-badge&logo=android&logoColor=white)](https://github.com/jakadwangdu/FlowRec-APP/releases/latest)
 
-* **Direct Download (Build 13):** [**flowrec-app-debug-build-13.apk**](https://github.com/jakadwangdu/FlowRec-APP/releases/download/debug-apk-build-13-1/flowrec-app-debug-build-13.apk)
-* **Releases & Changelog:** [GitHub Releases (Latest)](https://github.com/jakadwangdu/FlowRec-APP/releases/latest)
+* **Production Release APK (v1.0.0):** [**FlowRec-v1.0.0-release.apk**](https://github.com/jakadwangdu/FlowRec-APP/releases/download/v1.0.0-build-45-1/FlowRec-v1.0.0-release.apk)
+* **Permanent Direct Link:** [**FlowRec.apk (Latest)**](https://github.com/jakadwangdu/FlowRec-APP/releases/latest/download/FlowRec.apk)
+* **Releases & Changelog:** [GitHub Releases](https://github.com/jakadwangdu/FlowRec-APP/releases/latest)
 
 ---
 
