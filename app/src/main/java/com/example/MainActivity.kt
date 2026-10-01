@@ -138,6 +138,8 @@ fun FlowRecApp(
     val projects by viewModel.allProjects.collectAsState()
     val selectedProject by viewModel.selectedProject.collectAsState()
 
+    val recorderState by viewModel.recorderEngine.state.collectAsState()
+
     DisposableEffect(Unit) {
         viewModel.recorderEngine.onProjectIdSavedListener = { projectId ->
             viewModel.openProjectById(projectId)
@@ -148,6 +150,28 @@ fun FlowRecApp(
         onDispose {
             viewModel.recorderEngine.onProjectIdSavedListener = null
             viewModel.recorderEngine.onExternalStopListener = null
+        }
+    }
+
+    // Safely minimize to background ONLY AFTER recording is actively confirmed running
+    LaunchedEffect(recorderState) {
+        if (recorderState == com.example.model.RecorderState.RECORDING) {
+            kotlinx.coroutines.delay(350L)
+            activity.moveTaskToBack(true)
+        } else if (recorderState == com.example.model.RecorderState.ERROR) {
+            if (currentScreen == Screen.COUNTDOWN || currentScreen == Screen.RECORDING_HUD) {
+                viewModel.switchBottomTab(Screen.HOME)
+            }
+        }
+    }
+
+    // Auto-forward directly to editor as soon as recording finishes
+    LaunchedEffect(recorderState, selectedProject) {
+        if (currentScreen == Screen.RECORDING_HUD && recorderState == com.example.model.RecorderState.IDLE) {
+            val proj = selectedProject
+            if (proj != null) {
+                viewModel.openEditorForProject(proj)
+            }
         }
     }
 
@@ -183,7 +207,6 @@ fun FlowRecApp(
             if (viewModel.countdownOption.value == com.example.model.CountdownOption.OFF) {
                 viewModel.recorderEngine.startRecording()
                 viewModel.navigateTo(Screen.RECORDING_HUD)
-                activity.moveTaskToBack(true)
             } else {
                 viewModel.navigateTo(Screen.COUNTDOWN)
             }
@@ -346,7 +369,6 @@ fun FlowRecApp(
                     onCancel = { viewModel.navigateBack() },
                     onCountdownFinished = {
                         viewModel.navigateTo(Screen.RECORDING_HUD)
-                        activity.moveTaskToBack(true)
                     }
                 )
             }
@@ -355,7 +377,14 @@ fun FlowRecApp(
                 RecordingHudScreen(
                     viewModel = viewModel,
                     onBackClick = { viewModel.navigateBack() },
-                    onRecordingComplete = { /* Handled in engine callback */ }
+                    onRecordingComplete = {
+                        val proj = selectedProject
+                        if (proj != null) {
+                            viewModel.openEditorForProject(proj)
+                        } else {
+                            viewModel.switchBottomTab(Screen.HOME)
+                        }
+                    }
                 )
             }
 

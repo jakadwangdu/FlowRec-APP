@@ -818,11 +818,6 @@ fun HomeScreen(
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp, lineHeight = 18.sp),
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                    Text(
-                        text = "Status: AI Polishing Engine scheduled for Phase 5.",
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Bold),
-                        color = Color(0xFFA78BFA)
-                    )
                 }
             },
             confirmButton = {

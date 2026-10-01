@@ -79,7 +79,11 @@ fun SettingRowSwitch(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(end = 12.dp)
+        ) {
             Text(
                 text = label,
                 style = MaterialTheme.typography.bodyLarge.copy(

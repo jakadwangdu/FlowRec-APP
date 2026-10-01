@@ -376,11 +376,6 @@ class FloatingOverlayManager(private val context: Context) {
                 isClickable = true
                 setOnClickListener {
                     ScreenRecorderService.stopRecording(context)
-                    // Launch MainActivity safely without destroying it
-                    val launchIntent = Intent(context, MainActivity::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
-                    }
-                    context.startActivity(launchIntent)
                     collapseControls()
                 }
             }

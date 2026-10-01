@@ -482,37 +482,27 @@ fun SettingsScreen(
                             }
                         }
 
-                        // Duration & Opacity
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("Duration", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    listOf(250 to "Short", 500 to "Normal", 800 to "Long").forEach { (dur, label) ->
-                                        FilterChip(
-                                            selected = touchEffectDurationMs == dur,
-                                            onClick = { viewModel.setTouchEffectDurationMs(dur) },
-                                            label = { Text(label, fontSize = 10.5.sp) }
-                                        )
-                                    }
-                                }
+                        // Duration
+                        Text("Duration", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf(250 to "Short", 500 to "Normal", 800 to "Long").forEach { (dur, label) ->
+                                FilterChip(
+                                    selected = touchEffectDurationMs == dur,
+                                    onClick = { viewModel.setTouchEffectDurationMs(dur) },
+                                    label = { Text(label, fontSize = 11.sp) }
+                                )
                             }
+                        }
 
-                            Spacer(modifier = Modifier.width(8.dp))
-
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("Opacity", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    listOf(0.4f to "40%", 0.8f to "80%", 1.0f to "100%").forEach { (op, label) ->
-                                        FilterChip(
-                                            selected = kotlin.math.abs(touchEffectOpacity - op) < 0.05f,
-                                            onClick = { viewModel.setTouchEffectOpacity(op) },
-                                            label = { Text(label, fontSize = 10.5.sp) }
-                                        )
-                                    }
-                                }
+                        // Opacity
+                        Text("Opacity", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf(0.4f to "40%", 0.8f to "80%", 1.0f to "100%").forEach { (op, label) ->
+                                FilterChip(
+                                    selected = kotlin.math.abs(touchEffectOpacity - op) < 0.05f,
+                                    onClick = { viewModel.setTouchEffectOpacity(op) },
+                                    label = { Text(label, fontSize = 11.sp) }
+                                )
                             }
                         }
                     }

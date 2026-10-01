@@ -77,6 +77,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.RecorderState
 import com.example.ui.components.formatSeconds
+import androidx.compose.material3.CircularProgressIndicator
 import com.example.ui.theme.AccentRed
 import com.example.ui.viewmodel.FlowRecViewModel
 
@@ -91,6 +92,33 @@ fun RecordingHudScreen(
     val recorderState by viewModel.recorderEngine.state.collectAsState()
     val durationSeconds by viewModel.recorderEngine.durationSeconds.collectAsState()
     val config by viewModel.recorderEngine.config.collectAsState()
+
+    // Immediately replace HUD screen with smooth finalizing transition when recording stops
+    if (recorderState != RecorderState.RECORDING && recorderState != RecorderState.PAUSED) {
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(Color(0xFF0F0F12)),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                CircularProgressIndicator(
+                    color = MaterialTheme.colorScheme.primary,
+                    strokeWidth = 3.dp,
+                    modifier = Modifier.size(44.dp)
+                )
+                Text(
+                    text = "Finalizing video & opening editor...",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = Color.White
+                )
+            }
+        }
+        return
+    }
 
     var isHudMinimized by remember { mutableStateOf(false) }
     var showFacecam by remember { mutableStateOf(false) }

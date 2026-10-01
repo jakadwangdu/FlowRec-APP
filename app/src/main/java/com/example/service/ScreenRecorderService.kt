@@ -543,9 +543,15 @@ class ScreenRecorderService : Service() {
             }
 
             // Acquire MediaProjection
-            mediaProjection = mediaProjectionManager?.getMediaProjection(resultCode, resultData)
+            try {
+                mediaProjection = mediaProjectionManager?.getMediaProjection(resultCode, resultData)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error acquiring MediaProjection: ${e.message}", e)
+                mediaProjection = null
+            }
             if (mediaProjection == null) {
                 Log.e(TAG, "MediaProjection is null")
+                broadcastState("ERROR")
                 return false
             }
 
@@ -596,6 +602,7 @@ class ScreenRecorderService : Service() {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error starting screen recording: ${e.message}", e)
+            broadcastState("ERROR")
             return false
         }
     }
@@ -830,6 +837,17 @@ class ScreenRecorderService : Service() {
 
                 // Show notification that recording has saved
                 showRecordingSavedNotification(project)
+
+                // Directly launch editor screen for user
+                try {
+                    val directOpenIntent = Intent(this@ScreenRecorderService, MainActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                        putExtra("open_project_id", project.id)
+                    }
+                    startActivity(directOpenIntent)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Could not directly launch MainActivity: ${e.message}")
+                }
 
             } catch (e: Exception) {
                 Log.e(TAG, "Error finalizing recording: ${e.message}", e)

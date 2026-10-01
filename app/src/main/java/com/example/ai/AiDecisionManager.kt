@@ -46,8 +46,8 @@ object AiDecisionManager {
                 currentState.copy(audioConfig = enhancedAudio)
             }
             AiSuggestionType.TUTORIAL_STEP -> {
-                // Add keyframe or subtle callout text if focal coordinates are available
                 val step = suggestion.tutorialStep
+                var stepState = currentState
                 if (step != null && step.focalXPercent != null && step.focalYPercent != null) {
                     val kf = com.example.editor.model.ZoomKeyframe(
                         timeMs = step.startTimeMs,
@@ -56,10 +56,20 @@ object AiDecisionManager {
                         scale = 1.4f,
                         durationMs = 600L
                     )
-                    currentState.copy(zoomKeyframes = currentState.zoomKeyframes + kf)
-                } else {
-                    currentState
+                    stepState = stepState.copy(zoomKeyframes = stepState.zoomKeyframes + kf)
                 }
+                val callout = com.example.editor.model.TextOverlay(
+                    id = java.util.UUID.randomUUID().toString(),
+                    text = suggestion.title,
+                    startTimeMs = suggestion.startTimeMs,
+                    endTimeMs = (suggestion.startTimeMs + 2500L).coerceAtMost(stepState.effectiveDurationMs.coerceAtLeast(1000L)),
+                    xPercent = 0.5f,
+                    yPercent = 0.86f,
+                    textColorHex = "#FFFFFF",
+                    backgroundColorHex = "#CC121216",
+                    fontSizeSp = 13
+                )
+                stepState.copy(textOverlays = stepState.textOverlays + callout)
             }
             AiSuggestionType.IMPORTANT_MOMENT -> {
                 // Preserved on timeline highlights; no destructive change needed
@@ -110,6 +120,7 @@ object AiDecisionManager {
                 }
                 AiSuggestionType.TUTORIAL_STEP -> {
                     val step = suggestion.tutorialStep
+                    var stepState = runningState
                     if (step != null && step.focalXPercent != null && step.focalYPercent != null) {
                         val kf = com.example.editor.model.ZoomKeyframe(
                             timeMs = step.startTimeMs,
@@ -118,10 +129,20 @@ object AiDecisionManager {
                             scale = 1.4f,
                             durationMs = 600L
                         )
-                        runningState.copy(zoomKeyframes = runningState.zoomKeyframes + kf)
-                    } else {
-                        runningState
+                        stepState = stepState.copy(zoomKeyframes = stepState.zoomKeyframes + kf)
                     }
+                    val callout = com.example.editor.model.TextOverlay(
+                        id = java.util.UUID.randomUUID().toString(),
+                        text = suggestion.title,
+                        startTimeMs = suggestion.startTimeMs,
+                        endTimeMs = (suggestion.startTimeMs + 2500L).coerceAtMost(stepState.effectiveDurationMs.coerceAtLeast(1000L)),
+                        xPercent = 0.5f,
+                        yPercent = 0.86f,
+                        textColorHex = "#FFFFFF",
+                        backgroundColorHex = "#CC121216",
+                        fontSizeSp = 13
+                    )
+                    stepState.copy(textOverlays = stepState.textOverlays + callout)
                 }
                 AiSuggestionType.IMPORTANT_MOMENT -> runningState
             }
@@ -145,16 +166,31 @@ object AiDecisionManager {
      * Splits and marks idle segment as deleted in the timeline.
      */
     private fun applySmartCut(state: EditorProjectState, startMs: Long, endMs: Long): EditorProjectState {
-        var s = state
-        s = TimelineManager.splitAtTimelineTime(s, startMs)
-        s = TimelineManager.splitAtTimelineTime(s, endMs)
+        // Protect timeline: never delete all segments
+        val activeCount = state.segments.count { !it.isDeleted }
+        if (activeCount <= 0) return state
 
-        // Mark the segment between startMs and endMs as deleted
-        val updatedSegments = s.segments.map { seg ->
-            if (seg.sourceStartMs >= startMs - 50L && seg.sourceEndMs <= endMs + 50L) {
-                seg.copy(isDeleted = true)
-            } else {
-                seg
+        var s = state
+        val tlStart = TimelineManager.mapSourceToTimeline(s, startMs)
+        val tlEnd = TimelineManager.mapSourceToTimeline(s, endMs)
+
+        if (TimelineManager.canSplitAtTimelineTime(s, tlStart)) {
+            s = TimelineManager.splitAtTimelineTime(s, tlStart)
+        }
+        val remappedEnd = TimelineManager.mapSourceToTimeline(s, endMs)
+        if (TimelineManager.canSplitAtTimelineTime(s, remappedEnd)) {
+            s = TimelineManager.splitAtTimelineTime(s, remappedEnd)
+        }
+
+        // Mark candidate segments inside the cut interval as deleted, ensuring at least one remains active
+        val updatedSegments = s.segments.toMutableList()
+        for (i in updatedSegments.indices) {
+            val seg = updatedSegments[i]
+            if (!seg.isDeleted && seg.sourceStartMs >= startMs - 100L && seg.sourceEndMs <= endMs + 100L) {
+                val wouldRemain = updatedSegments.count { !it.isDeleted } > 1
+                if (wouldRemain) {
+                    updatedSegments[i] = seg.copy(isDeleted = true)
+                }
             }
         }
         return s.copy(segments = updatedSegments)

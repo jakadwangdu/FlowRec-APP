@@ -1127,8 +1127,12 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
             val updatedList = currentRes.suggestions.map {
                 if (it.id == suggestion.id) it.copy(isApplied = true, isRejected = false) else it
             }
-            _aiAnalysisResult.value = currentRes.copy(suggestions = updatedList)
+            val newResult = currentRes.copy(suggestions = updatedList)
+            _aiAnalysisResult.value = newResult
             saveAiAnalysisResult()
+            if (newResult.pendingSuggestions.isEmpty()) {
+                _showAiReviewModal.value = false
+            }
         }
     }
 
@@ -1138,8 +1142,12 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
             val updatedList = currentRes.suggestions.map {
                 if (it.id == suggestion.id) it.copy(isApplied = false, isRejected = true) else it
             }
-            _aiAnalysisResult.value = currentRes.copy(suggestions = updatedList)
+            val newResult = currentRes.copy(suggestions = updatedList)
+            _aiAnalysisResult.value = newResult
             saveAiAnalysisResult()
+            if (newResult.pendingSuggestions.isEmpty()) {
+                _showAiReviewModal.value = false
+            }
         }
     }
 
@@ -1158,6 +1166,12 @@ class FlowRecViewModel(application: Application) : AndroidViewModel(application)
         }
         _aiAnalysisResult.value = currentRes.copy(suggestions = updatedList)
         saveAiAnalysisResult()
+
+        // Close modal, reset playhead to preview from start, and give immediate feedback
+        _showAiReviewModal.value = false
+        _timelinePositionMs.value = 0L
+        _playheadSeconds.value = 0
+        android.widget.Toast.makeText(getApplication(), "All AI polish edits applied!", android.widget.Toast.LENGTH_SHORT).show()
     }
 
     fun zoomTimelineIn() {
