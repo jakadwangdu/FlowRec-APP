@@ -54,6 +54,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -80,6 +81,7 @@ import com.example.ui.components.formatSeconds
 import androidx.compose.material3.CircularProgressIndicator
 import com.example.ui.theme.AccentRed
 import com.example.ui.viewmodel.FlowRecViewModel
+import com.example.ui.viewmodel.Screen
 
 @Composable
 fun RecordingHudScreen(
@@ -116,7 +118,7 @@ fun RecordingHudScreen(
                     viewModel.openEditorForProject(finalTarget)
                     onRecordingComplete()
                 } else {
-                    viewModel.switchBottomTab(com.example.model.Screen.HOME)
+                    viewModel.switchBottomTab(Screen.HOME)
                 }
             }
         }
