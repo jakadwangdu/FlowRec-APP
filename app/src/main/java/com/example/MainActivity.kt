@@ -16,11 +16,17 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
+import com.example.config.UiFeatureFlagManager
+import com.example.ui.theme.flow
 import android.app.StatusBarManager
 import android.net.Uri
 import android.provider.Settings
@@ -96,10 +102,10 @@ class MainActivity : ComponentActivity() {
                 AppThemeMode.SYSTEM -> isSystemInDarkTheme()
             }
 
-            FlowRecTheme(darkTheme = isDark) {
+            FlowRecTheme(themeMode = themeMode, darkTheme = isDark) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
+                    color = flow.bg
                 ) {
                     FlowRecApp(
                         activity = this@MainActivity,
@@ -310,10 +316,19 @@ fun FlowRecApp(
         )
     }
 
+    val isReducedMotion = remember {
+        UiFeatureFlagManager.getInstance(activity).isReducedMotion(activity)
+    }
+
     AnimatedContent(
         targetState = currentScreen,
         transitionSpec = {
-            fadeIn() togetherWith fadeOut()
+            if (isReducedMotion) {
+                fadeIn(tween(220)) togetherWith fadeOut(tween(220))
+            } else {
+                (fadeIn(tween(550, easing = LinearOutSlowInEasing)) + slideInVertically(tween(550)) { 60 })
+                    .togetherWith(fadeOut(tween(220)) + slideOutVertically(tween(220)) { -30 })
+            }
         },
         label = "screen_transition"
     ) { screen ->

@@ -1,7 +1,11 @@
 package com.example.ui.screens
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -9,7 +13,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -27,12 +30,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.FiberManualRecord
-import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.ScreenRotation
-import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -43,8 +44,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -60,23 +61,21 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import android.Manifest
-import android.content.pm.PackageManager
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
-import com.example.ui.components.TouchVisualizationLayer
-import androidx.compose.material.icons.filled.RestartAlt
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.TextButton
+import com.example.config.UiFeatureFlagManager
 import com.example.model.AudioSourceMode
 import com.example.model.CountdownOption
 import com.example.model.FrameRate
+import com.example.model.RecorderState
 import com.example.model.RecordingResolution
 import com.example.model.VideoOrientation
 import com.example.ui.components.FlowRecBottomNav
-import com.example.ui.theme.AccentBlue
-import com.example.ui.theme.AccentRed
+import com.example.ui.components.FlowSwitch
+import com.example.ui.components.Rings
+import com.example.ui.components.Segmented
+import com.example.ui.components.Shutter
+import com.example.ui.components.TouchVisualizationLayer
+import com.example.ui.theme.flow
 import com.example.ui.viewmodel.FlowRecViewModel
 import com.example.ui.viewmodel.Screen
 
@@ -90,6 +89,14 @@ fun RecordScreen(
     if (onBackClick != null) {
         BackHandler { onBackClick() }
     }
+
+    val context = LocalContext.current
+    val flagManager = remember { UiFeatureFlagManager.getInstance(context) }
+    val featureFlags by flagManager.flags.collectAsState()
+    val isReducedMotion = flagManager.isReducedMotion(context)
+
+    val recState by viewModel.recorderEngine.state.collectAsState()
+    val isRecording = recState == RecorderState.RECORDING || recState == RecorderState.PAUSED
 
     val currentRes by viewModel.defaultResolution.collectAsState()
     val currentFps by viewModel.defaultFps.collectAsState()
@@ -112,7 +119,6 @@ fun RecordScreen(
     val touchEffectDurationMs by viewModel.touchEffectDurationMs.collectAsState()
     val touchEffectOpacity by viewModel.touchEffectOpacity.collectAsState()
 
-    val context = LocalContext.current
     var showCameraDeniedDialog by remember { mutableStateOf(false) }
 
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
@@ -130,6 +136,14 @@ fun RecordScreen(
         viewModel.getTouchEffectConfig()
     }
 
+    // Capture Mode Selector (Screen, Game, Voice - as specified in SKILL.md)
+    val captureModeOptions = listOf("Screen", "Game", "Voice")
+    val selectedModeIndex = when {
+        isGameMode -> 1
+        currentAudio == AudioSourceMode.MIC && !isGameMode -> 2
+        else -> 0
+    }
+
     Scaffold(
         bottomBar = {
             FlowRecBottomNav(
@@ -139,697 +153,712 @@ fun RecordScreen(
                 }
             )
         },
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = flow.bg,
         modifier = modifier.fillMaxSize()
     ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 20.dp)
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // Header
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-                    .padding(top = 4.dp, bottom = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Record Studio",
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp,
-                        letterSpacing = (-0.3).sp
-                    ),
-                    color = MaterialTheme.colorScheme.onBackground
+        Box(modifier = Modifier.fillMaxSize()) {
+            // Background Concentric Rings (Minimalist Monochrome)
+            if (featureFlags.enableBackgroundRings && featureFlags.useMinimalistMonochromeUi) {
+                Rings(
+                    recording = isRecording,
+                    reduceMotion = isReducedMotion
                 )
             }
 
-            // 1. LIVE STUDIO PREVIEW BOX
-            Card(
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                ),
-                border = CardDefaults.outlinedCardBorder().copy(
-                    brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.outlineVariant),
-                    width = 0.5.dp
-                ),
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("record_studio_preview")
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(horizontal = 20.dp)
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Column(
+                // Header
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(14.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                        .statusBarsPadding()
+                        .padding(top = 4.dp, bottom = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val previewAspect = when (currentOrientation) {
-                        VideoOrientation.LANDSCAPE -> 16f / 9f
-                        VideoOrientation.PORTRAIT -> 9f / 13f
-                        VideoOrientation.AUTO -> 9f / 12f
-                    }
+                    Text(
+                        text = "Capture",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = (-0.5).sp,
+                        color = flow.fg
+                    )
 
+                    // Quick orientation badge
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth(if (currentOrientation == VideoOrientation.LANDSCAPE) 1f else 0.55f)
-                            .aspectRatio(previewAspect)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(Color(0xFF0F0F12))
-                            .border(1.5.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp)),
-                        contentAlignment = Alignment.Center
+                            .clip(CircleShape)
+                            .background(flow.fill)
+                            .border(0.5.dp, flow.separator, CircleShape)
+                            .padding(horizontal = 10.dp, vertical = 5.dp)
                     ) {
-                        // Simulated screen content
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
+                        Text(
+                            text = currentOrientation.label,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = flow.fg
+                        )
+                    }
+                }
+
+                // Mode Selector (Sliding Segmented Control)
+                Segmented(
+                    options = captureModeOptions,
+                    selected = selectedModeIndex,
+                    onSelect = { index ->
+                        when (index) {
+                            0 -> { // Screen mode
+                                viewModel.setGameMode(false)
+                            }
+                            1 -> { // Game mode
+                                viewModel.setGameMode(true)
+                            }
+                            2 -> { // Voice mode
+                                viewModel.setGameMode(false)
+                                viewModel.setAudioSourceMode(AudioSourceMode.MIC)
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // 1. LIVE STUDIO PREVIEW BOX
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = flow.fill
+                    ),
+                    border = CardDefaults.outlinedCardBorder().copy(
+                        brush = androidx.compose.ui.graphics.SolidColor(flow.separator),
+                        width = 0.75.dp
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("record_studio_preview")
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        val previewAspect = when (currentOrientation) {
+                            VideoOrientation.LANDSCAPE -> 16f / 9f
+                            VideoOrientation.PORTRAIT -> 9f / 13f
+                            VideoOrientation.AUTO -> 9f / 12f
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(if (currentOrientation == VideoOrientation.LANDSCAPE) 1f else 0.55f)
+                                .aspectRatio(previewAspect)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(flow.glass)
+                                .border(1.dp, flow.separator, RoundedCornerShape(16.dp)),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                imageVector = Icons.Filled.Videocam,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-                                modifier = Modifier.size(32.dp)
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Display Capture",
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            // Simulated screen content
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Videocam,
+                                    contentDescription = null,
+                                    tint = flow.fg.copy(alpha = 0.6f),
+                                    modifier = Modifier.size(32.dp)
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = if (isGameMode) "Game Capture" else "Display Capture",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = flow.muted
+                                )
+                            }
+
+                            // Simulated Facecam bubble if enabled
+                            if (facecamEnabled) {
+                                val facecamCorner = if (facecamShape == "CIRCLE") 50.dp else 8.dp
+                                val facecamDp = when (facecamSize) {
+                                    "SMALL" -> 32.dp
+                                    "LARGE" -> 50.dp
+                                    else -> 40.dp
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(8.dp)
+                                        .size(facecamDp)
+                                        .clip(RoundedCornerShape(facecamCorner))
+                                        .background(flow.bg)
+                                        .border(1.dp, flow.fg.copy(alpha = 0.8f), RoundedCornerShape(facecamCorner)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.CameraAlt,
+                                        contentDescription = null,
+                                        tint = flow.fg,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+
+                            // Interactive Touch Visualization preview layer
+                            if (showTouches) {
+                                TouchVisualizationLayer(
+                                    config = touchConfig,
+                                    interactive = true,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+
+                            // Top status badges
+                            Row(
+                                modifier = Modifier
+                                    .align(Alignment.TopStart)
+                                    .padding(8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(Color.Black.copy(alpha = 0.7f))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = currentRes.label,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(Color.Black.copy(alpha = 0.7f))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "${currentFps.fps} FPS",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                // SHUTTER BUTTON (as specified in compose.md)
+                if (featureFlags.enableShutterMorphAnimation) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    ) {
+                        Shutter(
+                            recording = isRecording,
+                            size = 84.dp,
+                            onClick = onStartRecordingClick
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = if (isRecording) "Stop recording" else "Tap to record",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = flow.muted
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // 2. CONFIGURATION CONTROLS CARD
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = flow.fill
+                    ),
+                    border = CardDefaults.outlinedCardBorder().copy(
+                        brush = androidx.compose.ui.graphics.SolidColor(flow.separator),
+                        width = 0.75.dp
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(18.dp)
+                    ) {
+                        // RESOLUTION SELECTOR
+                        Text(
+                            text = "Resolution",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = flow.fg
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            RecordingResolution.values().forEach { res ->
+                                val isSelected = currentRes == res
+                                Box(
+                                    modifier = Modifier
+                                        .clip(CircleShape)
+                                        .background(if (isSelected) flow.fg else flow.glass)
+                                        .border(0.5.dp, flow.separator, CircleShape)
+                                        .clickable { viewModel.setDefaultResolution(res) }
+                                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = res.label,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) flow.onFg else flow.fg
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+                        HorizontalDivider(thickness = 0.5.dp, color = flow.separator)
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // FRAME RATE (FPS) SELECTOR
+                        Text(
+                            text = "Frame Rate",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = flow.fg
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            FrameRate.values().forEach { fps ->
+                                val isSelected = currentFps == fps
+                                Box(
+                                    modifier = Modifier
+                                        .clip(CircleShape)
+                                        .background(if (isSelected) flow.fg else flow.glass)
+                                        .border(0.5.dp, flow.separator, CircleShape)
+                                        .clickable { viewModel.setDefaultFps(fps) }
+                                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = fps.label,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) flow.onFg else flow.fg
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+                        HorizontalDivider(thickness = 0.5.dp, color = flow.separator)
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // AUDIO SOURCE
+                        Text(
+                            text = "Audio Source",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = flow.fg
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            AudioSourceMode.values().forEach { mode ->
+                                val isSelected = currentAudio == mode
+                                val isInternalSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+                                val labelText = when (mode) {
+                                    AudioSourceMode.NONE -> "Mute (video only)"
+                                    AudioSourceMode.MIC -> "Microphone"
+                                    AudioSourceMode.INTERNAL -> if (isInternalSupported) "Internal device audio" else "Internal (requires Android 10+)"
+                                    AudioSourceMode.MIC_AND_INTERNAL -> "Microphone + internal audio"
+                                }
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(if (isSelected) flow.fill else Color.Transparent)
+                                        .border(if (isSelected) 0.5.dp else 0.dp, flow.separator, RoundedCornerShape(12.dp))
+                                        .clickable { viewModel.setAudioSourceMode(mode) }
+                                        .padding(horizontal = 12.dp, vertical = 9.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = labelText,
+                                        fontSize = 13.sp,
+                                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                        color = flow.fg
+                                    )
+                                    if (isSelected) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(8.dp)
+                                                .clip(CircleShape)
+                                                .background(flow.fg)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+                        HorizontalDivider(thickness = 0.5.dp, color = flow.separator)
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // ORIENTATION & COUNTDOWN
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            // Orientation
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Orientation",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = flow.fg
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                VideoOrientation.values().forEach { orient ->
+                                    val isSelected = currentOrientation == orient
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 2.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(if (isSelected) flow.fg else flow.glass)
+                                            .border(0.5.dp, flow.separator, RoundedCornerShape(10.dp))
+                                            .clickable { viewModel.setVideoOrientation(orient) }
+                                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                                    ) {
+                                        Text(
+                                            text = orient.label,
+                                            fontSize = 11.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isSelected) flow.onFg else flow.fg
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(14.dp))
+
+                            // Countdown
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Countdown",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = flow.fg
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                CountdownOption.values().forEach { opt ->
+                                    val isSelected = currentCountdown == opt
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 2.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(if (isSelected) flow.fg else flow.glass)
+                                            .border(0.5.dp, flow.separator, RoundedCornerShape(10.dp))
+                                            .clickable { viewModel.setCountdownOption(opt) }
+                                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                                    ) {
+                                        Text(
+                                            text = opt.label,
+                                            fontSize = 11.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isSelected) flow.onFg else flow.fg
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+                        HorizontalDivider(thickness = 0.5.dp, color = flow.separator)
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // GAME RECORDING MODE PRESET
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(flow.glass)
+                                .border(0.5.dp, flow.separator, RoundedCornerShape(14.dp))
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.PlayArrow,
+                                    contentDescription = null,
+                                    tint = flow.fg,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Column {
+                                    Text(
+                                        text = "Game mode preset",
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 13.sp,
+                                        color = flow.fg
+                                    )
+                                    Text(
+                                        text = "1080p, 60 FPS, 12 Mbps, internal audio",
+                                        fontSize = 11.sp,
+                                        color = flow.muted
+                                    )
+                                }
+                            }
+
+                            FlowSwitch(
+                                checked = isGameMode,
+                                onChange = { viewModel.setGameMode(it) }
                             )
                         }
 
-                        // Simulated Facecam bubble if enabled
-                        if (facecamEnabled) {
-                            val facecamCorner = if (facecamShape == "CIRCLE") 50.dp else 8.dp
-                            val facecamDp = when (facecamSize) {
-                                "SMALL" -> 32.dp
-                                "LARGE" -> 50.dp
-                                else -> 40.dp
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .padding(8.dp)
-                                    .size(facecamDp)
-                                    .clip(RoundedCornerShape(facecamCorner))
-                                    .background(Color(0xFF2E2E38))
-                                    .border(1.dp, Color.White.copy(alpha = 0.8f), RoundedCornerShape(facecamCorner)),
-                                contentAlignment = Alignment.Center
+                        Spacer(modifier = Modifier.height(14.dp))
+                        HorizontalDivider(thickness = 0.5.dp, color = flow.separator)
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // FACECAM SECTION
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.weight(1f)
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.CameraAlt,
                                     contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(16.dp)
+                                    tint = flow.fg,
+                                    modifier = Modifier.size(18.dp)
                                 )
-                            }
-                        }
-
-                        // Interactive Touch Visualization preview layer
-                        if (showTouches) {
-                            TouchVisualizationLayer(
-                                config = touchConfig,
-                                interactive = true,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
-
-                        // Top status badges
-                        Row(
-                            modifier = Modifier
-                                .align(Alignment.TopStart)
-                                .padding(8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(Color.Black.copy(alpha = 0.7f))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) {
-                                Text(
-                                    text = currentRes.label,
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
-                                    color = Color.White
-                                )
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(Color.Black.copy(alpha = 0.7f))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) {
-                                Text(
-                                    text = "${currentFps.fps} FPS",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
-                                    color = Color.White
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // 2. CONFIGURATION CONTROLS CARD
-            Card(
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                ),
-                border = CardDefaults.outlinedCardBorder().copy(
-                    brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.outlineVariant),
-                    width = 0.5.dp
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                ) {
-                    // RESOLUTION SELECTOR
-                    Text(
-                        text = "Resolution",
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        RecordingResolution.values().forEach { res ->
-                            FilterChip(
-                                selected = currentRes == res,
-                                onClick = { viewModel.setDefaultResolution(res) },
-                                label = { Text(res.label, fontSize = 11.5.sp) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-                                )
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // FRAME RATE (FPS) SELECTOR
-                    Text(
-                        text = "Frame Rate",
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        FrameRate.values().forEach { fps ->
-                            FilterChip(
-                                selected = currentFps == fps,
-                                onClick = { viewModel.setDefaultFps(fps) },
-                                label = { Text(fps.label, fontSize = 11.5.sp) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-                                )
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // AUDIO SOURCE
-                    Text(
-                        text = "Audio Source",
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        AudioSourceMode.values().forEach { mode ->
-                            val isSelected = currentAudio == mode
-                            val isInternalSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
-                            val labelText = when (mode) {
-                                AudioSourceMode.NONE -> "Mute (Video only)"
-                                AudioSourceMode.MIC -> "Microphone"
-                                AudioSourceMode.INTERNAL -> if (isInternalSupported) "Internal Device Audio (Android 10+)" else "Internal (Android 10+ Required)"
-                                AudioSourceMode.MIC_AND_INTERNAL -> "Microphone + Internal Audio"
-                            }
-
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else Color.Transparent)
-                                    .clickable { viewModel.setAudioSourceMode(mode) }
-                                    .padding(horizontal = 10.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = labelText,
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontSize = 13.sp,
-                                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
-                                    ),
-                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                                )
-                                if (isSelected) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(8.dp)
-                                            .clip(CircleShape)
-                                            .background(MaterialTheme.colorScheme.primary)
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // ORIENTATION & COUNTDOWN
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        // Orientation
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Orientation",
-                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            VideoOrientation.values().forEach { orient ->
-                                FilterChip(
-                                    selected = currentOrientation == orient,
-                                    onClick = { viewModel.setVideoOrientation(orient) },
-                                    label = { Text(orient.label, fontSize = 11.sp) },
-                                    modifier = Modifier.padding(vertical = 1.dp)
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.width(12.dp))
-
-                        // Countdown
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Countdown",
-                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            CountdownOption.values().forEach { opt ->
-                                FilterChip(
-                                    selected = currentCountdown == opt,
-                                    onClick = { viewModel.setCountdownOption(opt) },
-                                    label = { Text(opt.label, fontSize = 11.sp) },
-                                    modifier = Modifier.padding(vertical = 1.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // GAME RECORDING MODE PRESET
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(if (isGameMode) AccentBlue.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.PlayArrow,
-                                contentDescription = null,
-                                tint = if (isGameMode) AccentBlue else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Column {
-                                Text(
-                                    text = "Game Mode Preset",
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold, fontSize = 13.sp),
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = "1080p, 60 FPS, 12 Mbps, internal audio",
-                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-
-                        Switch(
-                            checked = isGameMode,
-                            onCheckedChange = { viewModel.setGameMode(it) }
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // FACECAM SECTION
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.CameraAlt,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Column {
-                                Text(
-                                    text = "FaceCam Overlay",
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold, fontSize = 13.sp),
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = "Floating front-camera bubble while recording",
-                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                        Switch(
-                            checked = facecamEnabled,
-                            onCheckedChange = { enabled ->
-                                if (enabled) {
-                                    val hasCameraPerm = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
-                                    if (hasCameraPerm) {
-                                        viewModel.setFacecamEnabled(true)
-                                    } else {
-                                        cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                                    }
-                                } else {
-                                    viewModel.setFacecamEnabled(false)
-                                }
-                            }
-                        )
-                    }
-
-                    AnimatedVisibility(visible = facecamEnabled) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 10.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            // Lens Selector
-                            Column {
-                                Text(
-                                    text = "Camera Lens",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    FilterChip(
-                                        selected = facecamFrontLens,
-                                        onClick = { viewModel.setFacecamFrontLens(true) },
-                                        label = { Text("Front Camera", fontSize = 11.sp) }
-                                    )
-                                    FilterChip(
-                                        selected = !facecamFrontLens,
-                                        onClick = { viewModel.setFacecamFrontLens(false) },
-                                        label = { Text("Back Camera", fontSize = 11.sp) }
-                                    )
-                                }
-                            }
-
-                            // Shape Selector
-                            Column {
-                                Text(
-                                    text = "Bubble Shape",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    listOf("CIRCLE" to "Circle", "ROUNDED_RECT" to "Rounded Rect", "RECT" to "Square").forEach { (shape, name) ->
-                                        FilterChip(
-                                            selected = facecamShape == shape,
-                                            onClick = { viewModel.setFacecamShape(shape) },
-                                            label = { Text(name, fontSize = 11.sp) }
-                                        )
-                                    }
-                                }
-                            }
-
-                            // Size Selector & Position Reset
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
                                 Column {
                                     Text(
-                                        text = "Size",
-                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        text = "FaceCam overlay",
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 13.sp,
+                                        color = flow.fg
                                     )
-                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "Floating front-camera bubble while recording",
+                                        fontSize = 11.sp,
+                                        color = flow.muted
+                                    )
+                                }
+                            }
+                            FlowSwitch(
+                                checked = facecamEnabled,
+                                onChange = { enabled ->
+                                    if (enabled) {
+                                        val hasCamera = ContextCompat.checkSelfPermission(
+                                            context,
+                                            Manifest.permission.CAMERA
+                                        ) == PackageManager.PERMISSION_GRANTED
+                                        if (hasCamera) {
+                                            viewModel.setFacecamEnabled(true)
+                                        } else {
+                                            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                                        }
+                                    } else {
+                                        viewModel.setFacecamEnabled(false)
+                                    }
+                                }
+                            )
+                        }
+
+                        // FaceCam custom options if enabled
+                        AnimatedVisibility(visible = facecamEnabled) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 10.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                // Shape
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Shape", fontSize = 12.sp, color = flow.muted)
                                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        listOf("SMALL" to "Small", "MEDIUM" to "Medium", "LARGE" to "Large").forEach { (size, name) ->
-                                            FilterChip(
-                                                selected = facecamSize == size,
-                                                onClick = { viewModel.setFacecamSize(size) },
-                                                label = { Text(name, fontSize = 11.sp) }
-                                            )
+                                        listOf("CIRCLE" to "Circle", "SQUARE" to "Square").forEach { (shape, label) ->
+                                            val isSel = facecamShape == shape
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(if (isSel) flow.fg else flow.glass)
+                                                    .border(0.5.dp, flow.separator, RoundedCornerShape(8.dp))
+                                                    .clickable { viewModel.setFacecamShape(shape) }
+                                                    .padding(horizontal = 10.dp, vertical = 5.dp)
+                                            ) {
+                                                Text(
+                                                    text = label,
+                                                    fontSize = 11.sp,
+                                                    color = if (isSel) flow.onFg else flow.fg
+                                                )
+                                            }
                                         }
                                     }
                                 }
 
-                                TextButton(
-                                    onClick = { viewModel.resetFacecamPosition() },
-                                    modifier = Modifier.padding(top = 16.dp)
+                                // Size
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(Icons.Filled.RestartAlt, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Reset Pos", fontSize = 11.sp)
+                                    Text("Size", fontSize = 12.sp, color = flow.muted)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        listOf("SMALL" to "S", "MEDIUM" to "M", "LARGE" to "L").forEach { (sz, label) ->
+                                            val isSel = facecamSize == sz
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(if (isSel) flow.fg else flow.glass)
+                                                    .border(0.5.dp, flow.separator, RoundedCornerShape(8.dp))
+                                                    .clickable { viewModel.setFacecamSize(sz) }
+                                                    .padding(horizontal = 10.dp, vertical = 5.dp)
+                                            ) {
+                                                Text(
+                                                    text = label,
+                                                    fontSize = 11.sp,
+                                                    color = if (isSel) flow.onFg else flow.fg
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    Spacer(modifier = Modifier.height(12.dp))
-                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-                    Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(14.dp))
+                        HorizontalDivider(thickness = 0.5.dp, color = flow.separator)
+                        Spacer(modifier = Modifier.height(14.dp))
 
-                    // TOUCH EFFECTS SECTION
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
+                        // TOUCH EFFECTS SECTION
                         Row(
+                            modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.weight(1f)
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Icon(
-                                imageVector = Icons.Filled.TouchApp,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.TouchApp,
+                                    contentDescription = null,
+                                    tint = flow.fg,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Column {
+                                    Text(
+                                        text = "Touch feedback",
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 13.sp,
+                                        color = flow.fg
+                                    )
+                                    Text(
+                                        text = "Record touch coordinates & animated ripples",
+                                        fontSize = 11.sp,
+                                        color = flow.muted
+                                    )
+                                }
+                            }
+                            FlowSwitch(
+                                checked = showTouches,
+                                onChange = { viewModel.setShowTouches(it) }
                             )
-                            Column {
-                                Text(
-                                    text = "Touch Effects",
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold, fontSize = 13.sp),
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = "Record touch coordinates & display animated ripples",
-                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                        Switch(
-                            checked = showTouches,
-                            onCheckedChange = { viewModel.setShowTouches(it) }
-                        )
-                    }
-
-                    AnimatedVisibility(visible = showTouches) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 10.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            // Effect Features
-                            Column {
-                                Text(
-                                    text = "Visual Elements",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    FilterChip(
-                                        selected = touchRippleEnabled,
-                                        onClick = { viewModel.setTouchRippleEnabled(!touchRippleEnabled) },
-                                        label = { Text("Ripple", fontSize = 11.sp) }
-                                    )
-                                    FilterChip(
-                                        selected = touchHighlightEnabled,
-                                        onClick = { viewModel.setTouchHighlightEnabled(!touchHighlightEnabled) },
-                                        label = { Text("Highlight", fontSize = 11.sp) }
-                                    )
-                                    FilterChip(
-                                        selected = touchMovementTrackingEnabled,
-                                        onClick = { viewModel.setTouchMovementTrackingEnabled(!touchMovementTrackingEnabled) },
-                                        label = { Text("Movement Trail", fontSize = 11.sp) }
-                                    )
-                                }
-                            }
-
-                            // Size Selector
-                            Column {
-                                Text(
-                                    text = "Effect Size",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    listOf(24 to "Small", 36 to "Medium", 48 to "Large").forEach { (size, label) ->
-                                        FilterChip(
-                                            selected = touchEffectSizeDp == size,
-                                            onClick = { viewModel.setTouchEffectSizeDp(size) },
-                                            label = { Text(label, fontSize = 11.sp) }
-                                        )
-                                    }
-                                }
-                            }
-
-                            // Duration Selector
-                            Column {
-                                Text(
-                                    text = "Duration",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    listOf(250 to "Short", 500 to "Normal", 800 to "Long").forEach { (dur, label) ->
-                                        FilterChip(
-                                            selected = touchEffectDurationMs == dur,
-                                            onClick = { viewModel.setTouchEffectDurationMs(dur) },
-                                            label = { Text(label, fontSize = 11.sp) }
-                                        )
-                                    }
-                                }
-                            }
-
-                            // Opacity Selector
-                            Column {
-                                Text(
-                                    text = "Opacity",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    listOf(0.4f to "40%", 0.8f to "80%", 1.0f to "100%").forEach { (op, label) ->
-                                        FilterChip(
-                                            selected = kotlin.math.abs(touchEffectOpacity - op) < 0.05f,
-                                            onClick = { viewModel.setTouchEffectOpacity(op) },
-                                            label = { Text(label, fontSize = 11.sp) }
-                                        )
-                                    }
-                                }
-                            }
                         }
                     }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
-            // 3. LARGE PRIMARY "START RECORDING" ACTION BUTTON
-            Button(
-                onClick = onStartRecordingClick,
-                shape = RoundedCornerShape(20.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp)
-                    .testTag("btn_confirm_recording_popup")
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.FiberManualRecord,
-                    contentDescription = null,
-                    tint = AccentRed,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Start Recording",
-                    style = MaterialTheme.typography.labelLarge.copy(
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp
+                // Primary Start Recording Button (48dp+ height, clean monochrome style)
+                Button(
+                    onClick = onStartRecordingClick,
+                    shape = RoundedCornerShape(18.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = flow.fg,
+                        contentColor = flow.onFg
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
+                        .testTag("btn_confirm_recording_popup")
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.FiberManualRecord,
+                        contentDescription = null,
+                        tint = flow.record,
+                        modifier = Modifier.size(18.dp)
                     )
-                )
-            }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Start recording",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        color = flow.onFg
+                    )
+                }
 
-            Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(110.dp))
+            }
         }
     }
 
     if (showCameraDeniedDialog) {
         AlertDialog(
             onDismissRequest = { showCameraDeniedDialog = false },
+            containerColor = flow.sheet,
             title = {
                 Text(
-                    text = "Camera Permission Required",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                    text = "Camera permission required",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = flow.fg
                 )
             },
             text = {
                 Text(
                     text = "FaceCam requires camera permission to display a floating front-camera bubble while recording.\n\nYou can still record your screen normally without FaceCam, or grant permission to enable it.",
-                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp, lineHeight = 18.sp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                    color = flow.muted
                 )
             },
             confirmButton = {
@@ -838,16 +867,18 @@ fun RecordScreen(
                         showCameraDeniedDialog = false
                         cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
                     },
-                    shape = RoundedCornerShape(14.dp)
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = flow.fg,
+                        contentColor = flow.onFg
+                    )
                 ) {
-                    Text("Grant Permission")
+                    Text("Grant permission")
                 }
             },
             dismissButton = {
-                TextButton(
-                    onClick = { showCameraDeniedDialog = false }
-                ) {
-                    Text("Record Without FaceCam")
+                TextButton(onClick = { showCameraDeniedDialog = false }) {
+                    Text("Skip", color = flow.muted)
                 }
             }
         )
