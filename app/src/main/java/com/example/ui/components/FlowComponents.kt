@@ -297,16 +297,16 @@ fun QualitySheet(
 
     val audioOptions = listOf("Device", "Mic", "Both", "Mute")
     val audioValues = listOf(
-        AudioSourceMode.INTERNAL_ONLY,
-        AudioSourceMode.MIC_ONLY,
+        AudioSourceMode.INTERNAL,
+        AudioSourceMode.MIC,
         AudioSourceMode.MIC_AND_INTERNAL,
-        AudioSourceMode.MUTE
+        AudioSourceMode.NONE
     )
     val selectedAudioIndex = when (currentAudioSource) {
-        AudioSourceMode.INTERNAL_ONLY -> 0
-        AudioSourceMode.MIC_ONLY -> 1
+        AudioSourceMode.INTERNAL -> 0
+        AudioSourceMode.MIC -> 1
         AudioSourceMode.MIC_AND_INTERNAL -> 2
-        AudioSourceMode.MUTE -> 3
+        AudioSourceMode.NONE -> 3
     }
 
     ModalBottomSheet(

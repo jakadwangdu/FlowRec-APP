@@ -15,6 +15,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import com.example.model.AppThemeMode
 
 /**
  * FlowRec Design Tokens (Minimalist Monochrome - Ink on Paper)
@@ -115,7 +116,12 @@ private val LightColorScheme = lightColorScheme(
 
 @Composable
 fun FlowRecTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    themeMode: AppThemeMode = AppThemeMode.SYSTEM,
+    darkTheme: Boolean = when (themeMode) {
+        AppThemeMode.SYSTEM -> isSystemInDarkTheme()
+        AppThemeMode.DARK -> true
+        AppThemeMode.LIGHT -> false
+    },
     content: @Composable () -> Unit
 ) {
     val activeFlow = if (darkTheme) DarkFlow else LightFlow

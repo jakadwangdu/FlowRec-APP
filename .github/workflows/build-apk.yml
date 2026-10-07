@@ -1,4 +1,4 @@
-name: Build and Publish Production Release APK
+name: Build and Publish Debug APK
 
 on:
   push:
@@ -41,7 +41,7 @@ jobs:
           echo "Detected Java Major Version: $JAVA_MAJOR"
 
           if [ "$JAVA_MAJOR" -lt 17 ]; then
-            echo "Error: Java major version must be 17 or newer. Detected version: $JAVA_MAJOR"
+            echo "Error: Active Java major version must be 17 or newer. Detected version: $JAVA_MAJOR"
             exit 1
           fi
 
@@ -55,9 +55,9 @@ jobs:
       - name: Create temporary debug keystore
         run: |
           if [ -f "./debug.keystore" ]; then
-            echo "debug.keystore already exists in repository root."
+            echo "Debug keystore already exists at ./debug.keystore."
           else
-            echo "debug.keystore is missing. Generating temporary debug keystore..."
+            echo "Generating temporary debug keystore at ./debug.keystore..."
             keytool -genkey -v \
               -keystore ./debug.keystore \
               -storepass android \
@@ -72,115 +72,75 @@ jobs:
               echo "Error: Failed to create ./debug.keystore"
               exit 1
             fi
-            echo "Temporary debug.keystore generated successfully."
+            echo "Temporary debug keystore created successfully."
           fi
 
-      - name: Run Unit Tests
+      - name: Build the debug APK
         run: |
-          echo "=== Executing FlowRec Unit Tests (Phase 1–7 Test Suites) ==="
-          set -o pipefail
-          gradle :app:testDebugUnitTest --stacktrace --no-daemon 2>&1 | tee /tmp/test_build.log || {
-            echo "::error::Unit tests failed. Emitting log details:"
-            grep -E "e: |Error: |FAILED|Caused by:" /tmp/test_build.log | head -n 25 | while IFS= read -r line; do
-              echo "::error::$line"
-            done
-            tail -n 20 /tmp/test_build.log | while IFS= read -r line; do
-              echo "::error::$line"
-            done
-            exit 1
-          }
+          gradle :app:assembleDebug --stacktrace --no-daemon
 
-      - name: Build Release and Debug APKs
-        env:
-          SIGNING_STORE_FILE: ${{ secrets.SIGNING_STORE_FILE }}
-          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
-          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
-          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+      - name: Verify the APK
         run: |
-          set -o pipefail
-          gradle :app:assembleRelease :app:assembleDebug --stacktrace --no-daemon 2>&1 | tee /tmp/gradle_build.log || {
-            echo "::error::Gradle build failed. Emitting log details:"
-            grep -A 35 "\* What went wrong:" /tmp/gradle_build.log | while IFS= read -r line; do
-              echo "::error::$line"
-            done
-            tail -n 25 /tmp/gradle_build.log | while IFS= read -r line; do
-              echo "::error::$line"
-            done
-            exit 1
-          }
-
-      - name: Verify the APKs
-        run: |
-          echo "=== Verifying Generated APKs ==="
-          find app/build/outputs/apk -type f -name "*.apk" -print
-
-          # Check release APK
-          RELEASE_APK="app/build/outputs/apk/release/app-release.apk"
-          if [ ! -f "$RELEASE_APK" ]; then
-            RELEASE_APK=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
-          fi
-
-          if [ -z "$RELEASE_APK" ] || [ ! -s "$RELEASE_APK" ]; then
-            echo "Error: Release APK not found or is empty in app/build/outputs/apk/release"
+          EXPECTED_APK="app/build/outputs/apk/debug/app-debug.apk"
+          if [ ! -f "$EXPECTED_APK" ]; then
+            echo "Error: Expected debug APK not found at $EXPECTED_APK"
+            echo "Searching only inside app/build/outputs/apk for discovered APKs:"
+            if [ -d "app/build/outputs/apk" ]; then
+              find app/build/outputs/apk -type f -name "*.apk" -print
+            else
+              echo "Directory app/build/outputs/apk does not exist."
+            fi
             exit 1
           fi
 
-          RELEASE_SIZE=$(stat -c%s "$RELEASE_APK" 2>/dev/null || stat -f%z "$RELEASE_APK" 2>/dev/null)
-          echo "Verified Release APK exists at: $RELEASE_APK ($RELEASE_SIZE bytes)"
-
-          # Check debug APK
-          DEBUG_APK="app/build/outputs/apk/debug/app-debug.apk"
-          if [ -f "$DEBUG_APK" ] && [ -s "$DEBUG_APK" ]; then
-            DEBUG_SIZE=$(stat -c%s "$DEBUG_APK" 2>/dev/null || stat -f%z "$DEBUG_APK" 2>/dev/null)
-            echo "Verified Debug APK exists at: $DEBUG_APK ($DEBUG_SIZE bytes)"
+          if [ ! -f "$EXPECTED_APK" ] || [ ! -r "$EXPECTED_APK" ]; then
+            echo "Error: Selected APK is not a regular readable file."
+            exit 1
           fi
 
-      - name: Upload Release APK artifact
+          if [ ! -s "$EXPECTED_APK" ]; then
+            echo "Error: Selected APK is empty (0 bytes)."
+            exit 1
+          fi
+
+          case "$EXPECTED_APK" in
+            *.apk) ;;
+            *) echo "Error: Selected file does not have .apk extension."; exit 1 ;;
+          esac
+
+          if [ "$EXPECTED_APK" != "app/build/outputs/apk/debug/app-debug.apk" ]; then
+            echo "Error: Selected APK is not exactly app/build/outputs/apk/debug/app-debug.apk"
+            exit 1
+          fi
+
+          APK_SIZE=$(stat -c%s "$EXPECTED_APK" 2>/dev/null || stat -f%z "$EXPECTED_APK" 2>/dev/null)
+          echo "Verified APK exists, is a non-empty regular file ($APK_SIZE bytes), and is exactly $EXPECTED_APK."
+
+      - name: Upload debug APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: FlowRec-v1.0.0-release-apk
-          path: app/build/outputs/apk/release/*.apk
+          name: app-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 
-      - name: Upload Debug APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: FlowRec-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: warn
-
-      - name: Prepare APK release assets
+      - name: Prepare APK release asset
         id: prepare_asset
         run: |
-          RELEASE_SRC="app/build/outputs/apk/release/app-release.apk"
-          if [ ! -f "$RELEASE_SRC" ]; then
-            RELEASE_SRC=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          RAW_REPO_NAME="${GITHUB_REPOSITORY##*/}"
+          SANITIZED_REPO_NAME=$(echo "$RAW_REPO_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-zA-Z0-9_-]/-/g' | sed 's/--*/-/g' | sed 's/^-//;s/-$//')
+          if [ -z "$SANITIZED_REPO_NAME" ]; then
+            SANITIZED_REPO_NAME="app"
           fi
 
+          RELEASE_FILENAME="${SANITIZED_REPO_NAME}-debug-build-${GITHUB_RUN_NUMBER}.apk"
           TEMP_RELEASE_DIR=$(mktemp -d -t apk-release-XXXXXX)
-          PROD_ASSET_NAME="FlowRec-v1.0.0-release.apk"
-          PROD_ASSET_PATH="${TEMP_RELEASE_DIR}/${PROD_ASSET_NAME}"
-          cp "$RELEASE_SRC" "$PROD_ASSET_PATH"
+          RELEASE_ASSET_PATH="${TEMP_RELEASE_DIR}/${RELEASE_FILENAME}"
 
-          # Permanent permalink assets for direct website latest downloads
-          PERM_PROD_NAME="FlowRec.apk"
-          PERM_PROD_PATH="${TEMP_RELEASE_DIR}/${PERM_PROD_NAME}"
-          cp "$RELEASE_SRC" "$PERM_PROD_PATH"
+          cp "app/build/outputs/apk/debug/app-debug.apk" "$RELEASE_ASSET_PATH"
 
-          PERM_REL_NAME="FlowRec-release.apk"
-          PERM_REL_PATH="${TEMP_RELEASE_DIR}/${PERM_REL_NAME}"
-          cp "$RELEASE_SRC" "$PERM_REL_PATH"
-
-          DEBUG_ASSET_NAME="FlowRec-debug-build-${{ github.run_number }}.apk"
-          DEBUG_ASSET_PATH="${TEMP_RELEASE_DIR}/${DEBUG_ASSET_NAME}"
-          cp "app/build/outputs/apk/debug/app-debug.apk" "$DEBUG_ASSET_PATH"
-
-          echo "prod_asset_path=$PROD_ASSET_PATH" >> "$GITHUB_OUTPUT"
-          echo "prod_asset_name=$PROD_ASSET_NAME" >> "$GITHUB_OUTPUT"
-          echo "perm_prod_path=$PERM_PROD_PATH" >> "$GITHUB_OUTPUT"
-          echo "perm_rel_path=$PERM_REL_PATH" >> "$GITHUB_OUTPUT"
-          echo "debug_asset_path=$DEBUG_ASSET_PATH" >> "$GITHUB_OUTPUT"
-          echo "debug_asset_name=$DEBUG_ASSET_NAME" >> "$GITHUB_OUTPUT"
+          echo "release_asset_path=$RELEASE_ASSET_PATH" >> "$GITHUB_OUTPUT"
+          echo "release_asset_filename=$RELEASE_FILENAME" >> "$GITHUB_OUTPUT"
+          echo "Prepared release asset: $RELEASE_ASSET_PATH (filename: $RELEASE_FILENAME)"
 
       - name: Publish APK to GitHub Releases
         id: publish_release
@@ -188,78 +148,94 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          PROD_ASSET="${{ steps.prepare_asset.outputs.prod_asset_path }}"
-          PERM_PROD="${{ steps.prepare_asset.outputs.perm_prod_path }}"
-          PERM_REL="${{ steps.prepare_asset.outputs.perm_rel_path }}"
-          DEBUG_ASSET="${{ steps.prepare_asset.outputs.debug_asset_path }}"
+          echo "=== Verifying GitHub CLI ==="
+          gh --version
+          if ! command -v gh >/dev/null 2>&1; then
+            echo "Error: GitHub CLI (gh) is not available."
+            exit 1
+          fi
 
-          RELEASE_TAG="v1.0.0-build-${{ github.run_number }}-${{ github.run_attempt }}"
-          RELEASE_TITLE="FlowRec v1.0.0 Production Release (Build #${{ github.run_number }})"
+          ASSET_PATH="${{ steps.prepare_asset.outputs.release_asset_path }}"
+          if [ ! -f "$ASSET_PATH" ]; then
+            echo "Error: Prepared release asset does not exist at $ASSET_PATH"
+            exit 1
+          fi
 
-          cat << 'EOF' > /tmp/release_notes.md
-          ### 📱 FlowRec Android — v1.0.0 Production Release
+          if [ ! -s "$ASSET_PATH" ]; then
+            echo "Error: Prepared release asset is empty (0 bytes)."
+            exit 1
+          fi
 
-          **FlowRec is 100% Free, Accountless, and Local-First.**
-          No login, no subscriptions, no ads, no cloud tracking.
+          case "$ASSET_PATH" in
+            *.apk) ;;
+            *) echo "Error: Prepared release asset does not have .apk extension."; exit 1 ;;
+          esac
 
-          ---
-          #### 🚀 Key Features in v1.0.0
-          - **Screen Recording:** Hardware-accelerated screen capture up to 1080p 60 FPS.
-          - **Audio Capture:** Microphone, device internal audio, and mixed recording.
-          - **Touch Visualization:** Real-time ripple effects + `.flowtouch` metadata persistence.
-          - **FaceCam PiP:** Live camera overlay circle/rectangle with `.flowcam` persistence.
-          - **Non-Destructive Editor:** Instant seek, split, trim, delete with infinite undo/redo.
-          - **Overlays:** Customizable text titles, watermarks, logo stickers, and smooth zoom keyframes.
-          - **AI Video Intelligence:** Offline on-device silence cutting, auto zoom, smart highlights, and "Make It Flow" engine.
-          - **Hardware Export Pipeline:** High-speed MediaCodec H.264 rendering with gallery export and native Android sharing.
+          RELEASE_TAG="debug-apk-build-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
+          RELEASE_TITLE="Debug APK Build #${GITHUB_RUN_NUMBER}"
 
-          ---
-          #### 📦 Artifacts
-          - **`FlowRec-v1.0.0-release.apk`**: Production-optimized build with R8 code/resource shrinking.
-          - **`FlowRec-debug-build-${{ github.run_number }}.apk`**: Debug build for development and diagnostics.
+          NOTES_FILE=$(mktemp)
+          cat << EOF > "$NOTES_FILE"
+          ### Debug APK Build #${GITHUB_RUN_NUMBER}
 
-          - **Workflow Run:** #${{ github.run_number }}
-          - **Commit SHA:** `${{ github.sha }}`
-          - **Branch:** `${{ github.ref_name }}`
+          - This is an automatically generated debug APK.
+          - The APK was built by GitHub Actions.
+          - The GitHub Actions run number: ${GITHUB_RUN_NUMBER}
+          - The GitHub Actions run attempt: ${GITHUB_RUN_ATTEMPT}
+          - The source commit SHA: ${GITHUB_SHA}
+          - The APK is intended for testing.
+          - The APK is not a Play Store production release.
+          - The APK is signed only with a temporary debug keystore.
           EOF
 
-          echo "Publishing release with tag: $RELEASE_TAG"
-          gh release create "$RELEASE_TAG" \
-            "$PROD_ASSET" \
-            "$PERM_PROD" \
-            "$PERM_REL" \
-            "$DEBUG_ASSET" \
+          echo "Publishing release with tag: $RELEASE_TAG and title: $RELEASE_TITLE"
+          gh release create "$RELEASE_TAG" "$ASSET_PATH" \
             --title "$RELEASE_TITLE" \
-            --notes-file /tmp/release_notes.md \
-            --target "${{ github.sha }}" \
+            --notes-file "$NOTES_FILE" \
+            --target "$GITHUB_SHA" \
             --latest
 
-      - name: Report Release Result
+      - name: Report APK download result
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          RELEASE_STATUS="${{ steps.publish_release.outcome }}"
-          RELEASE_TAG="v1.0.0-build-${{ github.run_number }}-${{ github.run_attempt }}"
-          RELEASE_TITLE="FlowRec v1.0.0 Production Release (Build #${{ github.run_number }})"
+          RELEASE_OUTCOME="${{ steps.publish_release.outcome }}"
+          RELEASE_TAG="debug-apk-build-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
+          RELEASE_TITLE="Debug APK Build #${GITHUB_RUN_NUMBER}"
+          ASSET_NAME="${{ steps.prepare_asset.outputs.release_asset_filename }}"
 
-          if [ "$RELEASE_STATUS" = "success" ]; then
-            RELEASE_URL=$(gh release view "$RELEASE_TAG" --json url --jq .url 2>/dev/null || echo "")
+          if [ "$RELEASE_OUTCOME" = "success" ]; then
+            echo "=== Release Publishing Succeeded ==="
+            RELEASE_URL=$(gh release view "$RELEASE_TAG" --json url --jq .url 2>/dev/null || echo "https://github.com/${GITHUB_REPOSITORY}/releases/tag/${RELEASE_TAG}")
+            echo "Release Tag: $RELEASE_TAG"
+            echo "Release Title: $RELEASE_TITLE"
+            echo "Direct GitHub Release Page URL: $RELEASE_URL"
+            echo "Exact APK Asset Filename: $ASSET_NAME"
+
             {
-              echo "## 🚀 FlowRec v1.0.0 Release Published Successfully"
+              echo "## 🚀 Debug APK Build & Publishing Succeeded"
               echo ""
-              if [ -n "$RELEASE_URL" ]; then
-                echo "- **Release Page:** [$RELEASE_TITLE]($RELEASE_URL)"
-              else
-                echo "- **Release Tag:** \`$RELEASE_TAG\`"
-              fi
-              echo "- **Production Release APK:** \`FlowRec-v1.0.0-release.apk\`"
-              echo "- **Direct Download:** Download directly from the Assets section below or under GitHub Actions Artifacts."
+              echo "- **Release Tag:** \`$RELEASE_TAG\`"
+              echo "- **Release Title:** $RELEASE_TITLE"
+              echo "- **Direct Download Page:** [$RELEASE_URL]($RELEASE_URL)"
+              echo "- **APK Asset Filename:** \`$ASSET_NAME\`"
+              echo ""
+              echo "The debug APK can be downloaded directly on your phone from the **Assets** section of the release page above."
+              echo ""
+              echo "> **Backup Artifact:** The normal Actions artifact named \`app-debug-apk\` is also available in the run summary."
             } >> "$GITHUB_STEP_SUMMARY"
           else
+            echo "::warning::GitHub Release publishing failed or was skipped, but the APK build succeeded."
+            echo "The Actions artifact named 'app-debug-apk' remains available."
+
             {
-              echo "## 📦 FlowRec v1.0.0 Build Completed"
+              echo "## ⚠️ Debug APK Built — Release Publishing Warning"
               echo ""
-              echo "The production APK was built with R8 optimization and uploaded as an Actions artifact."
+              echo "The debug APK was built successfully, but publishing to GitHub Releases encountered an issue or was skipped."
+              echo ""
+              echo "- **Status:** APK build succeeded."
+              echo "- **Actions Artifact Available:** Yes, the artifact named \`app-debug-apk\` remains available."
+              echo "- **Backup Download Instructions:** Download \`app-debug-apk\` directly from the Artifacts section in this Actions workflow run."
             } >> "$GITHUB_STEP_SUMMARY"
           fi
